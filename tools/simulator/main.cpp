@@ -35,7 +35,9 @@ void print_usage(const char* program) {
 bool parse_positive_int(const char* value, int& out) {
     try {
         const long parsed = std::stol(value);
-        if (parsed <= 0 || parsed > std::numeric_limits<int>::max()) return false;
+        if (parsed <= 0 || parsed > std::numeric_limits<int>::max()) {
+            return false;
+        }
         out = static_cast<int>(parsed);
         return true;
     } catch (const std::exception&) {
@@ -46,7 +48,10 @@ bool parse_positive_int(const char* value, int& out) {
 bool parse_positive_size(const char* value, std::size_t& out) {
     try {
         const unsigned long long parsed = std::stoull(value);
-        if (parsed == 0 || parsed > std::numeric_limits<std::size_t>::max()) return false;
+        if (parsed == 0 ||
+            parsed > std::numeric_limits<std::size_t>::max()) {
+            return false;
+        }
         out = static_cast<std::size_t>(parsed);
         return true;
     } catch (const std::exception&) {
@@ -90,7 +95,8 @@ int main(int argc, char** argv) {
             continue;
         }
         if (argument == "--camera-height" && index + 1 < argc) {
-            if (!parse_positive_int(argv[++index], options.camera_height)) {
+            if (!parse_positive_int(
+                    argv[++index], options.camera_height)) {
                 std::cerr << "invalid --camera-height value\n";
                 return EXIT_FAILURE;
             }
@@ -123,7 +129,9 @@ int main(int argc, char** argv) {
         if (steps != 0U) {
             const bool succeeded = simulation.step(steps);
             const bool shutdown = simulation.shutdown();
-            return succeeded && shutdown ? EXIT_SUCCESS : EXIT_FAILURE;
+            return succeeded && shutdown
+                       ? EXIT_SUCCESS
+                       : EXIT_FAILURE;
         }
 
         std::signal(SIGINT, request_stop);
@@ -137,12 +145,16 @@ int main(int argc, char** argv) {
         while (!stop_requested.load()) {
             const auto status = simulation.status();
             if (status == mfr3duo_mujoco::SimulationStatus::Error) {
-                std::cerr << "MFR3Duo simulation entered the error state\n";
+                std::cerr
+                    << "MFR3Duo simulation entered the error state\n";
                 simulation.shutdown();
                 return EXIT_FAILURE;
             }
-            if (status == mfr3duo_mujoco::SimulationStatus::Stopped) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            if (status == mfr3duo_mujoco::SimulationStatus::Stopped) {
+                break;
+            }
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(20));
         }
 
         const auto status = simulation.status();
@@ -153,9 +165,14 @@ int main(int argc, char** argv) {
                 return EXIT_FAILURE;
             }
         }
-        return simulation.shutdown() ? EXIT_SUCCESS : EXIT_FAILURE;
+        return simulation.shutdown()
+                   ? EXIT_SUCCESS
+                   : EXIT_FAILURE;
     } catch (const std::exception& error) {
-        std::cerr << "mfr3duo_mujoco: " << error.what() << '\n';
+        std::cerr
+            << "mfr3duo_mujoco: "
+            << error.what()
+            << '\n';
         return EXIT_FAILURE;
     }
 }

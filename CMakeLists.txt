@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.22)
 project(mfr3duo_mujoco VERSION 0.2.0 LANGUAGES CXX)
 
 if(NOT UNIX OR APPLE)
@@ -40,10 +40,31 @@ if(MFR3DUO_DESCRIPTION_SHARE_DIR)
       MFR3DUO_MUJOCO_DEFAULT_DESCRIPTION_SHARE_DIR="${MFR3DUO_DESCRIPTION_SHARE_DIR}")
 endif()
 
-add_executable(mfr3duo_sim src/main.cpp)
+add_executable(mfr3duo_sim tools/simulator/main.cpp)
 target_compile_features(mfr3duo_sim PRIVATE cxx_std_17)
 target_link_libraries(mfr3duo_sim PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
 target_compile_options(mfr3duo_sim PRIVATE -Wall -Wextra -Wpedantic)
+
+option(MFR3DUO_MUJOCO_BUILD_TELEOP "Build the keyboard teleoperation tool" ON)
+if(MFR3DUO_MUJOCO_BUILD_TELEOP)
+  find_package(pinocchio REQUIRED)
+
+  add_executable(
+    mfr3duo_teleop
+    tools/teleop/main.cpp
+    tools/teleop/keyboard.cpp
+    tools/teleop/kinematics.cpp
+    tools/teleop/teleop.cpp)
+  target_compile_features(mfr3duo_teleop PRIVATE cxx_std_17)
+  target_include_directories(
+    mfr3duo_teleop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/teleop)
+  target_link_libraries(
+    mfr3duo_teleop
+    PRIVATE
+      ${PROJECT_NAME}::${PROJECT_NAME}
+      pinocchio::pinocchio)
+  target_compile_options(mfr3duo_teleop PRIVATE -Wall -Wextra -Wpedantic)
+endif()
 
 option(MFR3DUO_MUJOCO_BUILD_EXAMPLES "Build mfr3duo_mujoco examples" OFF)
 if(MFR3DUO_MUJOCO_BUILD_EXAMPLES)
@@ -90,6 +111,10 @@ install(
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if(MFR3DUO_MUJOCO_BUILD_TELEOP)
+  install(TARGETS mfr3duo_teleop RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(DIRECTORY docs DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME})
