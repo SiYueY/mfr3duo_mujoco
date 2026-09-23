@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>mfr3duo_mujoco</name>
+  <version>0.1.0</version>
+  <description>Robot-specific MuJoCo integration and bringup for the Mobile FR3 Duo.</description>
+  <maintainer email="maintainers@example.com">mfr3duo maintainers</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>ament_index_cpp</depend>
+  <depend>mfr3duo_description</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
