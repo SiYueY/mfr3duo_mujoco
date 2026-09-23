@@ -39,7 +39,6 @@ A direct control program can use the library like this:
     simulation.read_state(state);
     simulation.shutdown();
 
-For a complete compilable example, see examples/control.cpp.
 
 Simulation time can be advanced in two direct ways without configuring an execution mode:
 
@@ -114,14 +113,6 @@ damped-least-squares differential IK and are converted back to joint position
 commands before calling `Simulation::write_command()`.
 
 See `docs/teleop.md` for key mappings, control behavior and model-path options.
-
-Build the direct-control example with:
-
-    cmake -S . -B build \
-      -DMFR3DUO_MUJOCO_BUILD_EXAMPLES=ON \
-      -DCMAKE_PREFIX_PATH="$HOME/.local/romujoco"
-    cmake --build build -j
-    ./build/mfr3duo_control_example
 
 ## Consume from another C++ project
 
