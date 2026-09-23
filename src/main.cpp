@@ -8,8 +8,7 @@
 #include <string>
 #include <thread>
 
-#include "mfr3duo_mujoco/config.hpp"
-#include "romujoco/simulation.hpp"
+#include "mfr3duo_mujoco/simulation.hpp"
 
 namespace {
 
@@ -115,9 +114,8 @@ int main(int argc, char** argv) {
     }
 
     try {
-        romujoco::Simulation simulation;
-        const romujoco::SimulationConfig config = mfr3duo_mujoco::make_simulation_config(options);
-        if (!simulation.initialize(config)) {
+        mfr3duo_mujoco::Simulation simulation;
+        if (!simulation.initialize(options)) {
             std::cerr << "failed to initialize MFR3Duo simulation\n";
             return EXIT_FAILURE;
         }
@@ -137,19 +135,19 @@ int main(int argc, char** argv) {
         }
 
         while (!stop_requested.load()) {
-            const romujoco::SimulationStatus status = simulation.status();
-            if (status == romujoco::SimulationStatus::Error) {
+            const auto status = simulation.status();
+            if (status == mfr3duo_mujoco::SimulationStatus::Error) {
                 std::cerr << "MFR3Duo simulation entered the error state\n";
                 simulation.shutdown();
                 return EXIT_FAILURE;
             }
-            if (status == romujoco::SimulationStatus::Stopped) break;
+            if (status == mfr3duo_mujoco::SimulationStatus::Stopped) break;
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
 
-        const romujoco::SimulationStatus status = simulation.status();
-        if (status == romujoco::SimulationStatus::Running ||
-            status == romujoco::SimulationStatus::Paused) {
+        const auto status = simulation.status();
+        if (status == mfr3duo_mujoco::SimulationStatus::Running ||
+            status == mfr3duo_mujoco::SimulationStatus::Paused) {
             if (!simulation.stop()) {
                 simulation.shutdown();
                 return EXIT_FAILURE;

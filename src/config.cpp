@@ -1,14 +1,14 @@
-#include "mfr3duo_mujoco/config.hpp"
-#include "mfr3duo_mujoco/component_ids.hpp"
+#include "configuration.hpp"
 
 #include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
-#include <ament_index_cpp/get_package_share_directory.hpp>
+#include "component_ids.hpp"
 
 namespace mfr3duo_mujoco {
 namespace {
@@ -18,6 +18,37 @@ constexpr double kPhysicsPeriod = 0.001;
 constexpr double kViewerPeriod = 1.0 / 60.0;
 
 constexpr double degrees(double value) noexcept { return value * kPi / 180.0; }
+
+std::filesystem::path resolve_scene_candidate(const std::filesystem::path& candidate) {
+    if (candidate.empty()) return {};
+
+    if (std::filesystem::is_regular_file(candidate)) return candidate;
+
+    const std::filesystem::path package_scene = candidate / "mjcf" / "scene.xml";
+    if (std::filesystem::is_regular_file(package_scene)) return package_scene;
+
+    const std::filesystem::path prefix_scene =
+        candidate / "share" / "mfr3duo_description" / "mjcf" / "scene.xml";
+    if (std::filesystem::is_regular_file(prefix_scene)) return prefix_scene;
+
+    return {};
+}
+
+std::filesystem::path resolve_from_prefix_path(const char* value) {
+    if (value == nullptr) return {};
+
+    std::string paths(value);
+    std::size_t begin = 0;
+    while (begin <= paths.size()) {
+        const std::size_t end = paths.find(':', begin);
+        const std::string path = paths.substr(begin, end - begin);
+        const auto resolved = resolve_scene_candidate(path);
+        if (!resolved.empty()) return resolved;
+        if (end == std::string::npos) break;
+        begin = end + 1;
+    }
+    return {};
+}
 
 romujoco::JointInfo make_active_joint(
     romujoco::JointId id, std::string joint_name, std::string actuator_name,
@@ -84,8 +115,8 @@ void add_fr3_arm(
         const std::string base = prefix + "fr3v2_1_joint" + std::to_string(index + 1U);
         const JointSpec& spec = kSpecs[index];
         components.emplace_back(make_active_joint(
-            first_id + index, base, base + "_motor", {spec.lower, spec.upper}, spec.velocity,
-            spec.effort, kArmStiffness, kArmDamping));
+            first_id + index, base, base + "_motor", {spec.lower, spec.upper},
+            spec.velocity, spec.effort, kArmStiffness, kArmDamping));
     }
 }
 
@@ -111,7 +142,7 @@ romujoco::GripperInfo make_gripper(
 
 romujoco::SwerveMobileBaseInfo make_mobile_base() {
     romujoco::SwerveMobileBaseInfo info;
-    info.common.id = component_ids::mobile_base::kTmr;
+    info.common.id = detail::component_ids::mobile_base::kTmr;
     info.common.name = "tmr";
     info.common.base_body_name = "base_link";
     info.common.execution_mode = romujoco::MobileBaseExecutionMode::Dynamic;
@@ -127,7 +158,7 @@ romujoco::SwerveMobileBaseInfo make_mobile_base() {
 
 romujoco::ImuInfo make_imu() {
     romujoco::ImuInfo info;
-    info.id = component_ids::imu::kBase;
+    info.id = detail::component_ids::imu::kBase;
     info.name = "imu";
     info.frame_id = "imu_sensor_frame";
     info.framequat_sensor_name = "imu_orientation";
@@ -147,25 +178,21 @@ romujoco::LidarInfo make_lidar(
     info.site_name = std::move(site_name);
     info.output = romujoco::LidarOutput::LaserScan;
     info.period = period;
-
-    // nanoScan3 device baseline: 275 degree scan field at 0.17 degree angular resolution.
     info.azimuth_start = degrees(-47.5);
     info.azimuth_increment = degrees(0.17);
     info.azimuth_samples = 1618;
     info.channels = {{0.0, 0.0}};
     info.range_min = 0.05;
     info.range_max = 40.0;
-
-    // scene.xml uses group 1 for environment geometry and group 3 for collision geometry.
-    // Excluding visual group 2 prevents ray hits on rendering-only meshes.
     info.geom_group_mask = (1U << 1U) | (1U << 3U);
     info.exclude_parent_body = true;
     return info;
 }
 
 romujoco::CameraConfig make_camera(
-    romujoco::CameraId id, std::string name, std::string frame_id, std::string optical_frame_id,
-    std::string camera_name, bool rgb, bool depth, const SimulationOptions& options) {
+    romujoco::CameraId id, std::string name, std::string frame_id,
+    std::string optical_frame_id, std::string camera_name, bool rgb, bool depth,
+    const SimulationOptions& options) {
     romujoco::CameraConfig info;
     info.id = id;
     info.name = std::move(name);
@@ -180,55 +207,57 @@ romujoco::CameraConfig make_camera(
     return info;
 }
 
-void add_cameras(romujoco::ComponentConfigList& components, const SimulationOptions& options) {
+void add_cameras(
+    romujoco::ComponentConfigList& components, const SimulationOptions& options) {
+    using namespace detail::component_ids;
     components.emplace_back(make_camera(
-        component_ids::camera::kFrontColor, "front_color", "camera_front_color_frame", "camera_front_color_optical_frame",
-        "camera_front_color", true, false, options));
+        camera::kFrontColor, "front_color", "camera_front_color_frame",
+        "camera_front_color_optical_frame", "camera_front_color", true, false, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kFrontDepth, "front_depth", "camera_front_depth_frame", "camera_front_depth_optical_frame",
-        "camera_front_depth", false, true, options));
+        camera::kFrontDepth, "front_depth", "camera_front_depth_frame",
+        "camera_front_depth_optical_frame", "camera_front_depth", false, true, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kRearColor, "rear_color", "camera_rear_color_frame", "camera_rear_color_optical_frame",
-        "camera_rear_color", true, false, options));
+        camera::kRearColor, "rear_color", "camera_rear_color_frame",
+        "camera_rear_color_optical_frame", "camera_rear_color", true, false, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kRearDepth, "rear_depth", "camera_rear_depth_frame", "camera_rear_depth_optical_frame",
-        "camera_rear_depth", false, true, options));
+        camera::kRearDepth, "rear_depth", "camera_rear_depth_frame",
+        "camera_rear_depth_optical_frame", "camera_rear_depth", false, true, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kRightColor, "right_color", "camera_right_color_frame", "camera_right_color_optical_frame",
-        "camera_right_color", true, false, options));
+        camera::kRightColor, "right_color", "camera_right_color_frame",
+        "camera_right_color_optical_frame", "camera_right_color", true, false, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kRightDepth, "right_depth", "camera_right_depth_frame", "camera_right_depth_optical_frame",
-        "camera_right_depth", false, true, options));
+        camera::kRightDepth, "right_depth", "camera_right_depth_frame",
+        "camera_right_depth_optical_frame", "camera_right_depth", false, true, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kLeftColor, "left_color", "camera_left_color_frame", "camera_left_color_optical_frame",
-        "camera_left_color", true, false, options));
+        camera::kLeftColor, "left_color", "camera_left_color_frame",
+        "camera_left_color_optical_frame", "camera_left_color", true, false, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kLeftDepth, "left_depth", "camera_left_depth_frame", "camera_left_depth_optical_frame",
-        "camera_left_depth", false, true, options));
-
+        camera::kLeftDepth, "left_depth", "camera_left_depth_frame",
+        "camera_left_depth_optical_frame", "camera_left_depth", false, true, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kLeftWristColor, "left_wrist_color", "left_d435_link", "left_d435_color_optical_frame",
-        "d435_left_rgb", true, false, options));
+        camera::kLeftWristColor, "left_wrist_color", "left_d435_link",
+        "left_d435_color_optical_frame", "d435_left_rgb", true, false, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kLeftWristDepth, "left_wrist_depth", "left_d435_link", "left_d435_depth_optical_frame",
-        "d435_left_depth", false, true, options));
+        camera::kLeftWristDepth, "left_wrist_depth", "left_d435_link",
+        "left_d435_depth_optical_frame", "d435_left_depth", false, true, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kRightWristColor, "right_wrist_color", "right_d435_link", "right_d435_color_optical_frame",
-        "d435_right_rgb", true, false, options));
+        camera::kRightWristColor, "right_wrist_color", "right_d435_link",
+        "right_d435_color_optical_frame", "d435_right_rgb", true, false, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kRightWristDepth, "right_wrist_depth", "right_d435_link", "right_d435_depth_optical_frame",
-        "d435_right_depth", false, true, options));
-
+        camera::kRightWristDepth, "right_wrist_depth", "right_d435_link",
+        "right_d435_depth_optical_frame", "d435_right_depth", false, true, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kHeadZedLeft, "head_zed_left", "head_zed_left_camera_frame", "head_zed_left_camera_optical_frame",
-        "head_zed_left", true, false, options));
+        camera::kHeadZedLeft, "head_zed_left", "head_zed_left_camera_frame",
+        "head_zed_left_camera_optical_frame", "head_zed_left", true, false, options));
     components.emplace_back(make_camera(
-        component_ids::camera::kHeadZedRight, "head_zed_right", "head_zed_right_camera_frame",
+        camera::kHeadZedRight, "head_zed_right", "head_zed_right_camera_frame",
         "head_zed_right_camera_optical_frame", "head_zed_right", true, false, options));
 }
 
 void validate_options(const std::string& model_path, const SimulationOptions& options) {
-    if (model_path.empty()) throw std::invalid_argument("MFR3Duo model path must not be empty");
+    if (model_path.empty()) {
+        throw std::invalid_argument("MFR3Duo model path must not be empty");
+    }
     if (options.cameras_enabled &&
         (options.camera_width <= 0 || options.camera_height <= 0 ||
          !std::isfinite(options.camera_period) || options.camera_period <= 0.0)) {
@@ -242,18 +271,28 @@ void validate_options(const std::string& model_path, const SimulationOptions& op
 
 }  // namespace
 
-std::string description_share_directory() {
-    return ament_index_cpp::get_package_share_directory("mfr3duo_description");
+std::string scene_path() {
+    if (const char* value = std::getenv("MFR3DUO_DESCRIPTION_PATH")) {
+        const auto resolved = resolve_scene_candidate(value);
+        if (!resolved.empty()) return resolved.string();
+    }
+
+    const auto from_prefix = resolve_from_prefix_path(std::getenv("CMAKE_PREFIX_PATH"));
+    if (!from_prefix.empty()) return from_prefix.string();
+
+#ifdef MFR3DUO_MUJOCO_DEFAULT_DESCRIPTION_SHARE_DIR
+    const auto built_path =
+        resolve_scene_candidate(MFR3DUO_MUJOCO_DEFAULT_DESCRIPTION_SHARE_DIR);
+    if (!built_path.empty()) return built_path.string();
+#endif
+
+    throw std::runtime_error(
+        "unable to locate mfr3duo_description/mjcf/scene.xml; set "
+        "MFR3DUO_DESCRIPTION_PATH, expose its prefix through CMAKE_PREFIX_PATH, "
+        "or initialize Simulation with an explicit model path");
 }
 
-std::string scene_path() {
-    const std::filesystem::path path =
-        std::filesystem::path(description_share_directory()) / "mjcf" / "scene.xml";
-    if (!std::filesystem::is_regular_file(path)) {
-        throw std::runtime_error("mfr3duo_description does not contain mjcf/scene.xml");
-    }
-    return path.string();
-}
+namespace detail {
 
 romujoco::SimulationConfig make_simulation_config(
     const std::string& model_path, const SimulationOptions& options) {
@@ -266,33 +305,40 @@ romujoco::SimulationConfig make_simulation_config(
     config.scheduler.viewer_period = kViewerPeriod;
     config.viewer_enabled = options.viewer_enabled;
 
-    // Spine: use gravity compensation because the moving column carries both arms and the head.
     config.components.emplace_back(make_active_joint(
-        component_ids::joint::kSpine, "franka_spine_vertical_joint", "franka_spine_motor", {0.0, 0.85}, 0.1, 600.0,
-        5000.0, 200.0, true));
+        component_ids::joint::kSpine, "franka_spine_vertical_joint",
+        "franka_spine_motor", {0.0, 0.85}, 0.1, 600.0, 5000.0, 200.0, true));
 
-    add_fr3_arm(config.components, "left_", component_ids::joint::kLeftJoint1);
-    add_fr3_arm(config.components, "right_", component_ids::joint::kRightJoint1);
+    add_fr3_arm(config.components, "left_", component_ids::joint::kLeftArm.front());
+    add_fr3_arm(config.components, "right_", component_ids::joint::kRightArm.front());
 
-    // Passive TMR joints remain part of the physical model and are exposed as read-only state.
-    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterFrontLeftSteering, "caster_front_left_steering_joint"));
-    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterFrontLeftWheel, "caster_front_left_joint"));
-    config.components.emplace_back(make_passive_joint(component_ids::joint::kRockerArm, "rocker_arm_joint"));
-    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterRearRightSteering, "caster_rear_right_steering_joint"));
-    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterRearRightWheel, "caster_rear_right_joint"));
+    config.components.emplace_back(make_passive_joint(
+        component_ids::joint::kCasterFrontLeftSteering,
+        "caster_front_left_steering_joint"));
+    config.components.emplace_back(make_passive_joint(
+        component_ids::joint::kCasterFrontLeftWheel, "caster_front_left_joint"));
+    config.components.emplace_back(make_passive_joint(
+        component_ids::joint::kRockerArm, "rocker_arm_joint"));
+    config.components.emplace_back(make_passive_joint(
+        component_ids::joint::kCasterRearRightSteering,
+        "caster_rear_right_steering_joint"));
+    config.components.emplace_back(make_passive_joint(
+        component_ids::joint::kCasterRearRightWheel, "caster_rear_right_joint"));
 
-    config.components.emplace_back(make_gripper(component_ids::gripper::kLeft, "left_gripper", "left_"));
-    config.components.emplace_back(make_gripper(component_ids::gripper::kRight, "right_gripper", "right_"));
+    config.components.emplace_back(
+        make_gripper(component_ids::gripper::kLeft, "left_gripper", "left_"));
+    config.components.emplace_back(
+        make_gripper(component_ids::gripper::kRight, "right_gripper", "right_"));
     config.components.emplace_back(make_mobile_base());
 
     if (options.imu_enabled) config.components.emplace_back(make_imu());
     if (options.lidars_enabled) {
         config.components.emplace_back(make_lidar(
-            component_ids::lidar::kFront, "lidar_front", "lidar_front_scan_frame", "lidar_front_scan_frame",
-            options.lidar_period));
+            component_ids::lidar::kFront, "lidar_front", "lidar_front_scan_frame",
+            "lidar_front_scan_frame", options.lidar_period));
         config.components.emplace_back(make_lidar(
-            component_ids::lidar::kRear, "lidar_rear", "lidar_rear_scan_frame", "lidar_rear_scan_frame",
-            options.lidar_period));
+            component_ids::lidar::kRear, "lidar_rear", "lidar_rear_scan_frame",
+            "lidar_rear_scan_frame", options.lidar_period));
     }
     if (options.cameras_enabled) add_cameras(config.components, options);
 
@@ -303,4 +349,5 @@ romujoco::SimulationConfig make_simulation_config(const SimulationOptions& optio
     return make_simulation_config(scene_path(), options);
 }
 
+}  // namespace detail
 }  // namespace mfr3duo_mujoco

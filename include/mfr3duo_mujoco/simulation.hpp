@@ -1,0 +1,95 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+
+#include "mfr3duo_mujoco/camera.hpp"
+#include "mfr3duo_mujoco/command.hpp"
+#include "mfr3duo_mujoco/config.hpp"
+#include "mfr3duo_mujoco/lidar.hpp"
+#include "mfr3duo_mujoco/state.hpp"
+
+namespace mfr3duo_mujoco {
+
+enum class Arm : std::uint8_t {
+    Left,
+    Right,
+};
+
+enum class Gripper : std::uint8_t {
+    Left,
+    Right,
+};
+
+enum class SimulationStatus : std::uint8_t {
+    Uninitialized,
+    Stopped,
+    Running,
+    Paused,
+    Stopping,
+    Error,
+};
+
+/**
+ * @brief Mobile FR3 Duo robot-level MuJoCo simulation API.
+ *
+ * Simulation owns exactly one romujoco simulation internally. Callers control
+ * the robot through MFR3Duo semantics and never need component IDs or MuJoCo
+ * actuator names.
+ */
+class Simulation {
+public:
+    Simulation();
+    ~Simulation();
+
+    Simulation(const Simulation&) = delete;
+    Simulation& operator=(const Simulation&) = delete;
+    Simulation(Simulation&&) = delete;
+    Simulation& operator=(Simulation&&) = delete;
+
+    /**
+     * @brief Initialize the canonical installed MFR3Duo scene.
+     */
+    bool initialize(const SimulationOptions& options = {});
+
+    /**
+     * @brief Initialize from an explicit MFR3Duo-compatible MJCF scene.
+     */
+    bool initialize(const std::string& model_path, const SimulationOptions& options = {});
+
+    bool shutdown();
+
+    bool start();
+    bool stop();
+    bool pause();
+    bool resume();
+    bool reset();
+    bool reset(const std::string& keyframe_name);
+
+    bool write_arm_command(Arm arm, const ArmCommand& command);
+    bool write_gripper_command(Gripper gripper, const GripperCommand& command);
+    bool write_spine_command(const SpineCommand& command);
+    bool write_base_command(const BaseCommand& command);
+
+    bool read_state(RobotState& state) const;
+    bool read_arm_state(Arm arm, ArmState& state) const;
+    bool read_gripper_state(Gripper gripper, GripperState& state) const;
+    bool read_spine_state(SpineState& state) const;
+    bool read_base_state(BaseState& state) const;
+    bool read_imu_state(ImuState& state) const;
+    bool read_camera(Camera camera, CameraFrame& frame) const;
+    bool read_lidar(Lidar lidar, LaserScan& scan) const;
+
+    bool step(std::size_t count = 1);
+    std::uint64_t step_count() const;
+    double time() const;
+    SimulationStatus status() const;
+
+private:
+    class Impl;
+    std::unique_ptr<Impl> impl_;
+};
+
+}  // namespace mfr3duo_mujoco

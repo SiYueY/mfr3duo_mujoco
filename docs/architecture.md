@@ -1,75 +1,114 @@
 # mfr3duo_mujoco Architecture
 
-## Scope
+## Scope and dependency direction
 
-mfr3duo_mujoco is the robot-specific integration layer between:
+mfr3duo_mujoco is the robot-specific simulation layer between the authoritative MFR3Duo model and application code:
 
-- mfr3duo_description: authoritative URDF/MJCF and meshes.
-- robot_mujoco/romujoco: generic MuJoCo runtime and device components.
-
-The package does not copy MJCF assets and does not implement generic MuJoCo components. It owns only MFR3Duo-specific component assembly, runtime defaults, bringup and whole-robot validation.
-
-Architecture:
-
-    mfr3duo_description
+    User C++ application
             |
-            | scene.xml / mfr3duo.xml
             v
-    mfr3duo_mujoco
-            | robot-specific assembly
+    mfr3duo_mujoco::Simulation
+            |
+            | MFR3Duo robot semantics
             v
     romujoco::Simulation
             |
             v
           MuJoCo
 
-ROS 2 protocol adaptation belongs to the generic robot_mujoco/ros2_mujoco layer. It should be consumed here rather than reimplemented once all required adapters, including Gripper, are available.
+mfr3duo_description remains the source of truth for MJCF, meshes, dynamics, sensors and keyframes. romujoco remains the generic MuJoCo runtime. mfr3duo_mujoco owns the MFR3Duo assembly and maps robot-level commands and states to generic romujoco components.
 
-## V1 component assembly
+The core is a standalone C++17/CMake library. It does not depend on ROS 2, ament, DDS or ros2_control. Those systems may be added later only as adapters above the public C++ API.
 
-The default configuration loads mfr3duo_description/mjcf/scene.xml and registers:
+## Public API boundary
 
-- 15 active joints: spine plus left/right FR3.
-- 5 passive TMR joints: two caster pairs plus rocker arm.
-- 2 Franka Hand grippers.
-- 1 dynamic two-module swerve mobile base.
-- 1 IMU.
-- 2 nanoScan3 laser scanners.
-- 14 MuJoCo camera objects covering four D455 units, two wrist D435 units and the ZED Mini stereo pair.
+The public API is organized by meaning rather than by transport or middleware:
 
-The four active TMR steering/drive joints are owned exclusively by MobileBase. They are intentionally not duplicated as Joint components.
+    simulation.hpp
+        lifecycle, stepping and robot access
 
-## Model ownership
+    config.hpp
+        runtime options and scene discovery
 
-mfr3duo_description remains the single source of truth for geometry, mass/inertia, joint topology, actuator definitions, contacts, sensors, camera poses and keyframes. mfr3duo_mujoco contains only runtime-facing parameters that are not expressed by the generic component interface.
+    command.hpp
+        ArmCommand
+        SpineCommand
+        GripperCommand
+        BaseCommand
 
-Model loading uses the ROS 2 ament index at runtime and resolves:
+    state.hpp
+        RobotState
+        ArmState
+        SpineState
+        GripperState
+        BaseState
+        ImuState
 
-    share/mfr3duo_description/mjcf/scene.xml
+    camera.hpp
+        Camera
+        CameraFrame
 
-This avoids model copies, symlinks and fragile package-relative assumptions.
+    lidar.hpp
+        Lidar
+        LaserScan
 
-## Control baseline
+Camera and LiDAR payloads are deliberately excluded from RobotState. A high-rate control loop can therefore read RobotState without copying image or scan buffers.
 
-FR3 joints use the frozen Franka position, velocity and effort limits already present in mfr3duo_description. The default runtime controller is position mode with the 7000 stiffness baseline encoded in the frozen Franka parameter data. Command effort remains limited by the corresponding MJCF actuator limits.
+romujoco component IDs, actuator names and SimulationConfig are private implementation details under src/.
 
-The spine uses the MJCF force capacity of +/-600 N rather than the smaller URDF interface limit because the MuJoCo model must support the complete upper structure. Gravity compensation is enabled only for the spine. Enabling it independently for all 14 arm joints would force repeated full-model gravity computations in the current romujoco Joint implementation.
+## Control mapping
 
-Grippers use the actual one-actuator-plus-equality-coupling topology from mfr3duo.xml.
+The robot-level API exposes explicit MFR3Duo semantics:
 
-## Sensor baseline
+- Arm::Left and Arm::Right each map to seven FR3 active joints.
+- the spine maps to franka_spine_vertical_joint.
+- Gripper::Left and Gripper::Right map to the two Franka Hands.
+- BaseCommand maps to the dynamic TMR swerve component.
 
-The two nanoScan3 components use a 275 degree field, 0.17 degree angular resolution, 25 Hz period and 40 m distance range. The 0.05 m minimum range is an integration-layer near-range guard. Raycasts include environment and collision geometry groups while excluding rendering-only visual geometry.
+Arm commands are submitted to romujoco as one seven-joint batch. This preserves a coherent arm command update instead of requiring application code to issue seven unrelated component-ID writes.
 
-Camera components preserve the individual MuJoCo camera objects instead of treating a RealSense RGB/depth pair as one pinhole camera. This is required because color and depth cameras have different poses and fields of view in the MJCF.
+The API supports Position, Velocity, Effort and Hybrid joint modes. Position and velocity controller gains remain robot integration parameters. Hybrid stiffness and damping are supplied with each JointCommand because romujoco defines them as command data.
 
-A current upstream romujoco limitation remains for depth-only CameraInfo: width and height are populated from the RGB buffer. The depth image itself is rendered from the correct MJCF depth camera. This package deliberately does not hide that runtime defect with a robot-specific workaround.
+## State mapping
+
+RobotState is one coherent low-bandwidth snapshot containing:
+
+- simulation sequence, timestamp, time and step;
+- spine;
+- both seven-axis arms;
+- both grippers;
+- mobile-base ground-truth pose and twist.
+
+The base quaternion is normalized at the public boundary to x/y/z/w field semantics even though MuJoCo free-joint storage is w/x/y/z.
+
+IMU is read separately because it can be disabled independently. Camera and LiDAR have dedicated APIs and also return false when the corresponding component is disabled.
+
+## Component assembly
+
+The canonical configuration registers:
+
+- 15 active joints: spine plus both seven-axis FR3 arms;
+- 5 passive TMR joints;
+- 2 Franka Hand grippers;
+- 1 dynamic two-module swerve base;
+- 1 IMU;
+- 2 nanoScan3 scanners;
+- 14 MuJoCo camera objects.
+
+The active TMR steering and drive joints belong exclusively to MobileBase and are not duplicated as Joint components.
+
+Internal component IDs are stable only inside this integration layer. They are not an external control contract.
+
+## Model discovery
+
+The default Simulation::initialize() resolves mfr3duo_description/mjcf/scene.xml without ament. Resolution checks MFR3DUO_DESCRIPTION_PATH, CMAKE_PREFIX_PATH and an optional description directory discovered at build time.
+
+Applications that manage model paths themselves can call the explicit-path initialize overload, which avoids discovery completely.
 
 ## Validation
 
-Two levels are provided:
+The configuration test verifies the complete 40-component assembly without loading MuJoCo.
 
-1. mfr3duo_mujoco.config checks the complete assembly topology without loading MuJoCo.
-2. mfr3duo_mujoco.simulation_smoke loads the installed real scene.xml, initializes the whole robot with camera rendering disabled, advances physics and verifies all core state groups.
+The simulation smoke test loads the real scene with camera rendering disabled, advances at least 50 physics steps so the 25 Hz LiDARs have produced samples, and verifies the public robot state, IMU and both LiDAR interfaces.
 
-The smoke test is intentionally not environment-variable gated. If mfr3duo_description and romujoco become incompatible, this package should fail instead of silently skipping coverage.
+Camera RGB/depth objects remain separate because the MJCF models them as distinct cameras. The existing upstream depth-only CameraInfo metadata limitation remains a romujoco issue and is not hidden with a robot-specific workaround.

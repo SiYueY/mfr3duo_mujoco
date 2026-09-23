@@ -1,0 +1,5 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/mfr3duo_mujocoTargets.cmake")
+
+check_required_components(mfr3duo_mujoco)

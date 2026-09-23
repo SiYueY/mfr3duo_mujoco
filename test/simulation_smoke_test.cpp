@@ -2,19 +2,13 @@
 #include <exception>
 #include <iostream>
 
-#include "mfr3duo_mujoco/config.hpp"
-#include "romujoco/simulation.hpp"
+#include "mfr3duo_mujoco/simulation.hpp"
 
 namespace {
 
 bool check(bool condition, const char* message) {
     if (!condition) std::cerr << message << '\n';
     return condition;
-}
-
-template <typename States>
-bool size_is(const States& states, std::size_t expected) {
-    return states != nullptr && states->size() == expected;
 }
 
 }  // namespace
@@ -25,27 +19,38 @@ int main() {
         options.viewer_enabled = false;
         options.cameras_enabled = false;
 
-        romujoco::Simulation simulation;
+        mfr3duo_mujoco::Simulation simulation;
         if (!check(
-                simulation.initialize(mfr3duo_mujoco::make_simulation_config(options)),
+                simulation.initialize(options),
                 "failed to initialize the real MFR3Duo model")) {
             return EXIT_FAILURE;
         }
-        if (!check(simulation.step(5), "failed to step the MFR3Duo simulation")) {
+
+        // Advance beyond the 25 Hz LiDAR period so the test does not depend on
+        // whether an initial scan is published during component initialization.
+        if (!check(simulation.step(50), "failed to step the MFR3Duo simulation")) {
             simulation.shutdown();
             return EXIT_FAILURE;
         }
 
-        romujoco::RobotState state;
+        mfr3duo_mujoco::RobotState state;
+        mfr3duo_mujoco::ImuState imu;
+        mfr3duo_mujoco::LaserScan front_scan;
+        mfr3duo_mujoco::LaserScan rear_scan;
+
         const bool passed =
             check(simulation.read_state(state), "failed to read robot state") &&
-            check(size_is(state.joints, 20U), "unexpected joint state count") &&
-            check(size_is(state.grippers, 2U), "unexpected gripper state count") &&
-            check(size_is(state.mobile_bases, 1U), "unexpected mobile-base state count") &&
-            check(size_is(state.imus, 1U), "unexpected IMU state count") &&
-            check(size_is(state.laser_scans, 2U), "unexpected lidar state count") &&
-            check(state.cameras == nullptr || state.cameras->empty(), "cameras were not disabled") &&
+            check(simulation.read_imu_state(imu), "failed to read IMU state") &&
+            check(
+                simulation.read_lidar(mfr3duo_mujoco::Lidar::Front, front_scan),
+                "failed to read front LiDAR") &&
+            check(
+                simulation.read_lidar(mfr3duo_mujoco::Lidar::Rear, rear_scan),
+                "failed to read rear LiDAR") &&
+            check(!front_scan.ranges.empty(), "front LiDAR scan is empty") &&
+            check(!rear_scan.ranges.empty(), "rear LiDAR scan is empty") &&
             check(simulation.shutdown(), "failed to shut down the simulation");
+
         return passed ? EXIT_SUCCESS : EXIT_FAILURE;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

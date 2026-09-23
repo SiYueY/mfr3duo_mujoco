@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "romujoco/component/camera.hpp"
 #include "romujoco/component/component_id.hpp"
 #include "romujoco/component/gripper.hpp"
@@ -7,26 +9,12 @@
 #include "romujoco/component/joint.hpp"
 #include "romujoco/component/lidar.hpp"
 
-namespace mfr3duo_mujoco::component_ids {
+namespace mfr3duo_mujoco::detail::component_ids {
 
 namespace joint {
 inline constexpr romujoco::JointId kSpine = 0;
-
-inline constexpr romujoco::JointId kLeftJoint1 = 1;
-inline constexpr romujoco::JointId kLeftJoint2 = 2;
-inline constexpr romujoco::JointId kLeftJoint3 = 3;
-inline constexpr romujoco::JointId kLeftJoint4 = 4;
-inline constexpr romujoco::JointId kLeftJoint5 = 5;
-inline constexpr romujoco::JointId kLeftJoint6 = 6;
-inline constexpr romujoco::JointId kLeftJoint7 = 7;
-
-inline constexpr romujoco::JointId kRightJoint1 = 8;
-inline constexpr romujoco::JointId kRightJoint2 = 9;
-inline constexpr romujoco::JointId kRightJoint3 = 10;
-inline constexpr romujoco::JointId kRightJoint4 = 11;
-inline constexpr romujoco::JointId kRightJoint5 = 12;
-inline constexpr romujoco::JointId kRightJoint6 = 13;
-inline constexpr romujoco::JointId kRightJoint7 = 14;
+inline constexpr std::array<romujoco::JointId, 7> kLeftArm{1, 2, 3, 4, 5, 6, 7};
+inline constexpr std::array<romujoco::JointId, 7> kRightArm{8, 9, 10, 11, 12, 13, 14};
 
 inline constexpr romujoco::JointId kCasterFrontLeftSteering = 15;
 inline constexpr romujoco::JointId kCasterFrontLeftWheel = 16;
@@ -70,4 +58,4 @@ inline constexpr romujoco::CameraId kHeadZedLeft = 12;
 inline constexpr romujoco::CameraId kHeadZedRight = 13;
 }  // namespace camera
 
-}  // namespace mfr3duo_mujoco::component_ids
+}  // namespace mfr3duo_mujoco::detail::component_ids

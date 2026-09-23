@@ -1,85 +1,117 @@
 # mfr3duo_mujoco
 
-mfr3duo_mujoco is the Mobile FR3 Duo integration package for MuJoCo.
+mfr3duo_mujoco is the Mobile FR3 Duo MuJoCo simulation library.
 
-It combines the authoritative model from mfr3duo_description with the generic simulation runtime from robot_mujoco/romujoco. The package does not copy the MJCF and does not reimplement generic simulation components.
+It combines the authoritative model from mfr3duo_description with the generic runtime from robot_mujoco/romujoco and exposes a robot-level C++ API. Applications control the simulated robot directly through mfr3duo_mujoco; they do not need ROS 2, MuJoCo actuator names or romujoco component IDs.
 
-## Responsibilities
+## Public API
 
-This package owns only robot-specific integration:
+The public surface is intentionally small:
 
-- locate and load mfr3duo_description/mjcf/scene.xml;
-- assemble all MFR3Duo romujoco components;
-- provide a runnable whole-robot simulator;
-- provide whole-robot compatibility tests;
-- later provide MFR3Duo ROS 2 bringup by reusing the generic ros2_mujoco adapter.
+- simulation.hpp: lifecycle, stepping, command and state access.
+- config.hpp: runtime options and canonical scene resolution.
+- command.hpp: arm, spine, gripper and mobile-base commands.
+- state.hpp: robot, arm, spine, gripper, base and IMU states.
+- camera.hpp: camera selection and frame data.
+- lidar.hpp: LiDAR selection and scan data.
 
-The default assembly includes the TMR dynamic swerve base, spine, both 7-DoF FR3 arms, both Franka Hands, IMU, two nanoScan3 scanners and all 14 MJCF camera objects.
+Component IDs and romujoco assembly types are implementation details.
 
-See docs/architecture.md for ownership and component mapping.
+A direct control program can use the library like this:
+
+    #include <mfr3duo_mujoco/simulation.hpp>
+
+    mfr3duo_mujoco::Simulation simulation;
+    mfr3duo_mujoco::SimulationOptions options;
+    options.viewer_enabled = false;
+
+    if (!simulation.initialize(options)) {
+        return 1;
+    }
+
+    mfr3duo_mujoco::BaseCommand base;
+    base.linear_x = 0.2;
+    simulation.write_base_command(base);
+
+    simulation.step(1000);
+
+    mfr3duo_mujoco::RobotState state;
+    simulation.read_state(state);
+    simulation.shutdown();
+
+For a complete compilable example, see examples/control.cpp.
 
 ## Dependencies
 
-- Ubuntu Linux
-- ROS 2 and ament_cmake
-- mfr3duo_description
+- Linux
+- C++17
 - an installed romujoco CMake package
+- mfr3duo_description model files at runtime
 
-romujoco is a standalone CMake package rather than an ament package. Install it first and expose its prefix through CMAKE_PREFIX_PATH.
+The core library does not depend on ROS 2, ament, DDS or ros2_control.
 
-Example for robot_mujoco/romujoco:
+The canonical scene resolver searches:
 
-    ./scripts/mujoco.sh build
-    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX="$HOME/.local/romujoco"
+1. MFR3DUO_DESCRIPTION_PATH;
+2. CMAKE_PREFIX_PATH entries for share/mfr3duo_description/mjcf/scene.xml;
+3. MFR3DUO_DESCRIPTION_SHARE_DIR discovered while building this library.
+
+Applications can bypass discovery entirely with:
+
+    simulation.initialize("/absolute/path/to/mfr3duo_description/mjcf/scene.xml", options);
+
+MFR3DUO_DESCRIPTION_PATH may point to scene.xml, the mfr3duo_description package directory, its installed share directory, or its installation prefix.
+
+## Build
+
+Install romujoco and make its CMake package visible, then build:
+
+    cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_PREFIX_PATH="$HOME/.local/romujoco"
     cmake --build build -j
-    cmake --install build
 
-    export CMAKE_PREFIX_PATH="$HOME/.local/romujoco:$CMAKE_PREFIX_PATH"
+If the description is installed in another prefix, append that prefix to CMAKE_PREFIX_PATH or specify:
 
-Then build mfr3duo_description and this package in a ROS 2 workspace:
+    -DMFR3DUO_DESCRIPTION_SHARE_DIR=/path/to/share/mfr3duo_description
 
-    colcon build --packages-up-to mfr3duo_mujoco
-    source install/setup.bash
+Run:
 
-## Run
+    ./build/mfr3duo_sim
+    ./build/mfr3duo_sim --headless
+    ./build/mfr3duo_sim --headless --no-cameras --steps 1000
 
-Start the complete simulator with the interactive viewer:
+Build the direct-control example with:
 
-    ros2 run mfr3duo_mujoco mfr3duo_sim
+    cmake -S . -B build \
+      -DMFR3DUO_MUJOCO_BUILD_EXAMPLES=ON \
+      -DCMAKE_PREFIX_PATH="$HOME/.local/romujoco"
+    cmake --build build -j
+    ./build/mfr3duo_control_example
 
-Headless operation:
+## Consume from another C++ project
 
-    ros2 run mfr3duo_mujoco mfr3duo_sim --headless
+After installation:
 
-For a lightweight core check without GPU camera rendering:
+    find_package(mfr3duo_mujoco CONFIG REQUIRED)
 
-    ros2 run mfr3duo_mujoco mfr3duo_sim --headless --no-cameras --steps 1000
+    target_link_libraries(
+      my_controller
+      PRIVATE
+        mfr3duo_mujoco::mfr3duo_mujoco)
 
-Available options:
-
-    --headless
-    --no-cameras
-    --no-lidars
-    --no-imu
-    --camera-width N
-    --camera-height N
-    --keyframe NAME
-    --steps N
-
-The default initial keyframe is home.
+The consumer-facing headers do not expose romujoco types.
 
 ## Tests
 
 Run:
 
-    colcon test --packages-select mfr3duo_mujoco
-    colcon test-result --verbose
+    ctest --test-dir build --output-on-failure
 
-The package includes a smoke test against the real installed MFR3Duo MJCF. It does not silently skip when the model is missing or incompatible.
+The configuration test checks the complete 40-component assembly. The simulation smoke test loads the real MFR3Duo scene, advances beyond one LiDAR period and verifies the robot-level state, IMU and both LiDAR APIs.
 
-## Current boundary
+## Boundary
 
-The MuJoCo core assembly is the V1 target. ROS 2 message and ros2_control adaptation belongs to robot_mujoco/ros2_mujoco and should not be duplicated here. Full ROS 2 bringup should be added after the generic adapter exposes the new romujoco Gripper component.
+mfr3duo_description owns the robot model. romujoco owns generic MuJoCo runtime and generic device components. mfr3duo_mujoco owns MFR3Duo-specific assembly and the robot-level simulation API.
 
-Camera RGB and depth objects are configured separately because mfr3duo_description models them as distinct MuJoCo cameras with distinct poses and fields of view. A known upstream romujoco issue remains in depth-only CameraInfo metadata; the depth image itself still comes from the correct MJCF camera.
+ROS 2, Python, network or other integrations may be implemented as optional adapters above this C++ API. They are not part of the core simulation architecture.
