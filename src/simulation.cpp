@@ -408,7 +408,12 @@ bool Simulation::read_lidar(Lidar lidar, LaserScan& scan) const {
     return true;
 }
 
-bool Simulation::step(std::size_t count) { return impl_->simulation.step(count); }
+bool Simulation::step(std::size_t count) {
+    if (impl_->simulation.status() != romujoco::SimulationStatus::Stopped) {
+        return false;
+    }
+    return impl_->simulation.step(count);
+}
 
 std::uint64_t Simulation::step_count() const { return impl_->simulation.step_count(); }
 
