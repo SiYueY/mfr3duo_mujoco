@@ -49,6 +49,13 @@ int main() {
                 "failed to read rear LiDAR") &&
             check(!front_scan.ranges.empty(), "front LiDAR scan is empty") &&
             check(!rear_scan.ranges.empty(), "rear LiDAR scan is empty") &&
+            check(simulation.start(), "failed to start continuous simulation") &&
+            check(!simulation.step(), "step unexpectedly succeeded while running") &&
+            check(simulation.pause(), "failed to pause continuous simulation") &&
+            check(!simulation.step(), "step unexpectedly succeeded while paused") &&
+            check(simulation.resume(), "failed to resume continuous simulation") &&
+            check(simulation.stop(), "failed to stop continuous simulation") &&
+            check(simulation.step(), "step failed after continuous simulation stopped") &&
             check(simulation.shutdown(), "failed to shut down the simulation");
 
         return passed ? EXIT_SUCCESS : EXIT_FAILURE;
