@@ -1,4 +1,5 @@
 #include "mfr3duo_mujoco/config.hpp"
+#include "mfr3duo_mujoco/component_ids.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -110,7 +111,7 @@ romujoco::GripperInfo make_gripper(
 
 romujoco::SwerveMobileBaseInfo make_mobile_base() {
     romujoco::SwerveMobileBaseInfo info;
-    info.common.id = 0;
+    info.common.id = component_ids::mobile_base::kTmr;
     info.common.name = "tmr";
     info.common.base_body_name = "base_link";
     info.common.execution_mode = romujoco::MobileBaseExecutionMode::Dynamic;
@@ -126,7 +127,7 @@ romujoco::SwerveMobileBaseInfo make_mobile_base() {
 
 romujoco::ImuInfo make_imu() {
     romujoco::ImuInfo info;
-    info.id = 0;
+    info.id = component_ids::imu::kBase;
     info.name = "imu";
     info.frame_id = "imu_sensor_frame";
     info.framequat_sensor_name = "imu_orientation";
@@ -181,48 +182,48 @@ romujoco::CameraConfig make_camera(
 
 void add_cameras(romujoco::ComponentConfigList& components, const SimulationOptions& options) {
     components.emplace_back(make_camera(
-        0, "front_color", "camera_front_color_frame", "camera_front_color_optical_frame",
+        component_ids::camera::kFrontColor, "front_color", "camera_front_color_frame", "camera_front_color_optical_frame",
         "camera_front_color", true, false, options));
     components.emplace_back(make_camera(
-        1, "front_depth", "camera_front_depth_frame", "camera_front_depth_optical_frame",
+        component_ids::camera::kFrontDepth, "front_depth", "camera_front_depth_frame", "camera_front_depth_optical_frame",
         "camera_front_depth", false, true, options));
     components.emplace_back(make_camera(
-        2, "rear_color", "camera_rear_color_frame", "camera_rear_color_optical_frame",
+        component_ids::camera::kRearColor, "rear_color", "camera_rear_color_frame", "camera_rear_color_optical_frame",
         "camera_rear_color", true, false, options));
     components.emplace_back(make_camera(
-        3, "rear_depth", "camera_rear_depth_frame", "camera_rear_depth_optical_frame",
+        component_ids::camera::kRearDepth, "rear_depth", "camera_rear_depth_frame", "camera_rear_depth_optical_frame",
         "camera_rear_depth", false, true, options));
     components.emplace_back(make_camera(
-        4, "right_color", "camera_right_color_frame", "camera_right_color_optical_frame",
+        component_ids::camera::kRightColor, "right_color", "camera_right_color_frame", "camera_right_color_optical_frame",
         "camera_right_color", true, false, options));
     components.emplace_back(make_camera(
-        5, "right_depth", "camera_right_depth_frame", "camera_right_depth_optical_frame",
+        component_ids::camera::kRightDepth, "right_depth", "camera_right_depth_frame", "camera_right_depth_optical_frame",
         "camera_right_depth", false, true, options));
     components.emplace_back(make_camera(
-        6, "left_color", "camera_left_color_frame", "camera_left_color_optical_frame",
+        component_ids::camera::kLeftColor, "left_color", "camera_left_color_frame", "camera_left_color_optical_frame",
         "camera_left_color", true, false, options));
     components.emplace_back(make_camera(
-        7, "left_depth", "camera_left_depth_frame", "camera_left_depth_optical_frame",
+        component_ids::camera::kLeftDepth, "left_depth", "camera_left_depth_frame", "camera_left_depth_optical_frame",
         "camera_left_depth", false, true, options));
 
     components.emplace_back(make_camera(
-        8, "left_wrist_color", "left_d435_link", "left_d435_color_optical_frame",
+        component_ids::camera::kLeftWristColor, "left_wrist_color", "left_d435_link", "left_d435_color_optical_frame",
         "d435_left_rgb", true, false, options));
     components.emplace_back(make_camera(
-        9, "left_wrist_depth", "left_d435_link", "left_d435_depth_optical_frame",
+        component_ids::camera::kLeftWristDepth, "left_wrist_depth", "left_d435_link", "left_d435_depth_optical_frame",
         "d435_left_depth", false, true, options));
     components.emplace_back(make_camera(
-        10, "right_wrist_color", "right_d435_link", "right_d435_color_optical_frame",
+        component_ids::camera::kRightWristColor, "right_wrist_color", "right_d435_link", "right_d435_color_optical_frame",
         "d435_right_rgb", true, false, options));
     components.emplace_back(make_camera(
-        11, "right_wrist_depth", "right_d435_link", "right_d435_depth_optical_frame",
+        component_ids::camera::kRightWristDepth, "right_wrist_depth", "right_d435_link", "right_d435_depth_optical_frame",
         "d435_right_depth", false, true, options));
 
     components.emplace_back(make_camera(
-        12, "head_zed_left", "head_zed_left_camera_frame", "head_zed_left_camera_optical_frame",
+        component_ids::camera::kHeadZedLeft, "head_zed_left", "head_zed_left_camera_frame", "head_zed_left_camera_optical_frame",
         "head_zed_left", true, false, options));
     components.emplace_back(make_camera(
-        13, "head_zed_right", "head_zed_right_camera_frame",
+        component_ids::camera::kHeadZedRight, "head_zed_right", "head_zed_right_camera_frame",
         "head_zed_right_camera_optical_frame", "head_zed_right", true, false, options));
 }
 
@@ -267,30 +268,30 @@ romujoco::SimulationConfig make_simulation_config(
 
     // Spine: use gravity compensation because the moving column carries both arms and the head.
     config.components.emplace_back(make_active_joint(
-        0, "franka_spine_vertical_joint", "franka_spine_motor", {0.0, 0.85}, 0.1, 600.0,
+        component_ids::joint::kSpine, "franka_spine_vertical_joint", "franka_spine_motor", {0.0, 0.85}, 0.1, 600.0,
         5000.0, 200.0, true));
 
-    add_fr3_arm(config.components, "left_", 1);
-    add_fr3_arm(config.components, "right_", 8);
+    add_fr3_arm(config.components, "left_", component_ids::joint::kLeftJoint1);
+    add_fr3_arm(config.components, "right_", component_ids::joint::kRightJoint1);
 
     // Passive TMR joints remain part of the physical model and are exposed as read-only state.
-    config.components.emplace_back(make_passive_joint(15, "caster_front_left_steering_joint"));
-    config.components.emplace_back(make_passive_joint(16, "caster_front_left_joint"));
-    config.components.emplace_back(make_passive_joint(17, "rocker_arm_joint"));
-    config.components.emplace_back(make_passive_joint(18, "caster_rear_right_steering_joint"));
-    config.components.emplace_back(make_passive_joint(19, "caster_rear_right_joint"));
+    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterFrontLeftSteering, "caster_front_left_steering_joint"));
+    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterFrontLeftWheel, "caster_front_left_joint"));
+    config.components.emplace_back(make_passive_joint(component_ids::joint::kRockerArm, "rocker_arm_joint"));
+    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterRearRightSteering, "caster_rear_right_steering_joint"));
+    config.components.emplace_back(make_passive_joint(component_ids::joint::kCasterRearRightWheel, "caster_rear_right_joint"));
 
-    config.components.emplace_back(make_gripper(0, "left_gripper", "left_"));
-    config.components.emplace_back(make_gripper(1, "right_gripper", "right_"));
+    config.components.emplace_back(make_gripper(component_ids::gripper::kLeft, "left_gripper", "left_"));
+    config.components.emplace_back(make_gripper(component_ids::gripper::kRight, "right_gripper", "right_"));
     config.components.emplace_back(make_mobile_base());
 
     if (options.imu_enabled) config.components.emplace_back(make_imu());
     if (options.lidars_enabled) {
         config.components.emplace_back(make_lidar(
-            0, "lidar_front", "lidar_front_scan_frame", "lidar_front_scan_frame",
+            component_ids::lidar::kFront, "lidar_front", "lidar_front_scan_frame", "lidar_front_scan_frame",
             options.lidar_period));
         config.components.emplace_back(make_lidar(
-            1, "lidar_rear", "lidar_rear_scan_frame", "lidar_rear_scan_frame",
+            component_ids::lidar::kRear, "lidar_rear", "lidar_rear_scan_frame", "lidar_rear_scan_frame",
             options.lidar_period));
     }
     if (options.cameras_enabled) add_cameras(config.components, options);
