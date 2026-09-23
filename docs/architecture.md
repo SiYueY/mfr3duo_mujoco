@@ -56,6 +56,22 @@ Camera and LiDAR payloads are deliberately excluded from RobotState. A high-rate
 
 romujoco component IDs, actuator names and SimulationConfig are private implementation details under src/.
 
+## Simulation execution
+
+The public API deliberately exposes no execution-mode enum. The caller selects the
+execution style by which operation it invokes:
+
+- `step(count)` explicitly advances a stopped simulation by a fixed number of
+  physics steps. This is intended for controllers, agents, tests and deterministic
+  experiments that own simulation-time progression.
+- `start()` starts continuous execution using the internal scheduler. The caller
+  can continue reading state and writing commands while the simulation advances.
+
+The two styles are mutually exclusive. `step()` is accepted only while the
+simulation status is `Stopped`; it is rejected while `Running`, `Paused`,
+`Stopping`, `Error` or `Uninitialized`. Pausing continuous execution does not
+transfer ownership of time advancement to the caller.
+
 ## Control mapping
 
 The robot-level API exposes explicit MFR3Duo semantics:
