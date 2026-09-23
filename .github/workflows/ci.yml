@@ -40,6 +40,11 @@ jobs:
           create-args: >-
             pinocchio=4.1.0
 
+      - name: Use Pinocchio C++ runtime
+        run: |
+          echo "LIBRARY_PATH=$CONDA_PREFIX/lib${LIBRARY_PATH:+:$LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
