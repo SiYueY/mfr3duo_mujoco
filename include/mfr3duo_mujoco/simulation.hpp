@@ -61,6 +61,12 @@ public:
 
     bool shutdown();
 
+    /**
+     * @brief Start continuous simulation execution.
+     *
+     * The internal scheduler advances simulation time until stop() is called.
+     * start() is valid only while the simulation is stopped.
+     */
     bool start();
     bool stop();
     bool pause();
@@ -82,6 +88,12 @@ public:
     bool read_camera(Camera camera, CameraFrame& frame) const;
     bool read_lidar(Lidar lidar, LaserScan& scan) const;
 
+    /**
+     * @brief Advance the simulation explicitly by a fixed number of physics steps.
+     *
+     * step() is valid only while the simulation is stopped. It cannot be mixed
+     * with continuous execution started by start(), including while paused.
+     */
     bool step(std::size_t count = 1);
     std::uint64_t step_count() const;
     double time() const;
