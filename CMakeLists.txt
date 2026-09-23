@@ -5,6 +5,8 @@ if(NOT UNIX OR APPLE)
   message(FATAL_ERROR "mfr3duo_mujoco supports Linux only.")
 endif()
 
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 include(CTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
