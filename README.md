@@ -41,6 +41,21 @@ A direct control program can use the library like this:
 
 For a complete compilable example, see examples/control.cpp.
 
+Simulation time can be advanced in two direct ways without configuring an execution mode:
+
+    // Caller advances simulation time explicitly.
+    simulation.step();
+
+or:
+
+    // Internal scheduler advances simulation time continuously.
+    simulation.start();
+    // read/write commands and states...
+    simulation.stop();
+
+These forms are mutually exclusive. `step()` is accepted only while the
+simulation is stopped; it is rejected while continuous execution is running or paused.
+
 ## Dependencies
 
 - Linux
