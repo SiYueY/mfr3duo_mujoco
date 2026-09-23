@@ -135,7 +135,7 @@ bool Kinematics::initialize(const std::string& urdf_path) {
 }
 
 bool Kinematics::read_limits(Arm arm, ArmJointLimits& limits) const {
-    if (!impl_->initialized) return false;
+    if (!impl_->initialized || (arm != Arm::Left && arm != Arm::Right)) return false;
     limits = impl_->arm(arm).limits;
     return true;
 }
@@ -146,7 +146,10 @@ bool Kinematics::compute_jacobian(
     const std::array<double, kArmJointCount>& joint_position,
     CartesianFrame frame,
     ArmJacobian& jacobian) {
-    if (!impl_->initialized || impl_->data == nullptr) return false;
+    if (!impl_->initialized || impl_->data == nullptr ||
+        (arm != Arm::Left && arm != Arm::Right)) {
+        return false;
+    }
 
     Eigen::VectorXd q = impl_->neutral;
     q[impl_->spine_q_index] = spine_position;

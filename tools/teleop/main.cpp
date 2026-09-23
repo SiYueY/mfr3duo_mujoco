@@ -1,4 +1,3 @@
-#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -15,9 +14,9 @@
 
 namespace {
 
-std::atomic_bool stop_requested{false};
+volatile std::sig_atomic_t stop_requested = 0;
 
-void request_stop(int) { stop_requested.store(true); }
+void request_stop(int) { stop_requested = 1; }
 
 void print_usage(const char* program) {
     std::cout
@@ -133,7 +132,7 @@ int main(int argc, char** argv) {
         auto next = previous + period;
         bool failed = false;
 
-        while (!stop_requested.load()) {
+        while (stop_requested == 0) {
             char key{};
             while (keyboard.read(key)) {
                 bool exit_requested = false;
@@ -143,11 +142,11 @@ int main(int argc, char** argv) {
                     break;
                 }
                 if (exit_requested) {
-                    stop_requested.store(true);
+                    stop_requested = 1;
                     break;
                 }
             }
-            if (failed || stop_requested.load()) break;
+            if (failed || stop_requested != 0) break;
 
             const auto now = Clock::now();
             const double dt =

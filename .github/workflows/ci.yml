@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+jobs:
+  build-test-install:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - name: Checkout mfr3duo_mujoco
+        uses: actions/checkout@v4
+        with:
+          path: mfr3duo_mujoco
+
+      - name: Checkout robot_mujoco
+        uses: actions/checkout@v4
+        with:
+          repository: SiYueY/robot_mujoco
+          ref: develop
+          submodules: recursive
+          path: robot_mujoco
+
+      - name: Checkout mfr3duo_description
+        uses: actions/checkout@v4
+        with:
+          repository: SiYueY/mfr3duo_description
+          ref: develop
+          path: mfr3duo_description
+
+      - name: Install Pinocchio 4.1
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: ci
+          create-args: >-
+            pinocchio=4.1.0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1-mesa-dev \
+            libgl1-mesa-dev \
+            libglfw3-dev \
+            ninja-build
+
+      - name: Build bundled MuJoCo
+        run: |
+          cd robot_mujoco/romujoco
+          ./scripts/mujoco.sh build -j 2
+
+      - name: Build and install romujoco
+        run: |
+          cmake -S robot_mujoco/romujoco -B build/romujoco -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install" \
+            -DROMUJOCO_BUILD_TESTS=OFF
+          cmake --build build/romujoco --parallel 2
+          cmake --install build/romujoco
+
+      - name: Configure mfr3duo_mujoco
+        run: |
+          cmake -S mfr3duo_mujoco -B build/mfr3duo -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install" \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install;$CONDA_PREFIX" \
+            -DMFR3DUO_DESCRIPTION_SHARE_DIR="$GITHUB_WORKSPACE/mfr3duo_description" \
+            -DMFR3DUO_MUJOCO_BUILD_TELEOP=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build/mfr3duo --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build/mfr3duo --output-on-failure
+
+      - name: Install
+        run: cmake --install build/mfr3duo
+
+      - name: Verify installed executables
+        run: |
+          "$GITHUB_WORKSPACE/install/bin/mfr3duo_sim" --help
+          "$GITHUB_WORKSPACE/install/bin/mfr3duo_teleop" --help
+          readelf -d "$GITHUB_WORKSPACE/install/bin/mfr3duo_sim" | grep -E 'RPATH|RUNPATH'
+          readelf -d "$GITHUB_WORKSPACE/install/lib/libmfr3duo_mujoco.so.0" | grep -E 'RPATH|RUNPATH'
+
+      - name: Build installed-package consumer
+        run: |
+          cmake -S mfr3duo_mujoco/test/consumer -B build/consumer -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install"
+          cmake --build build/consumer --parallel 2
+          ./build/consumer/mfr3duo_mujoco_consumer

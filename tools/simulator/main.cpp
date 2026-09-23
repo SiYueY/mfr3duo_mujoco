@@ -1,4 +1,3 @@
-#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -12,9 +11,9 @@
 
 namespace {
 
-std::atomic_bool stop_requested{false};
+volatile std::sig_atomic_t stop_requested = 0;
 
-void request_stop(int) { stop_requested.store(true); }
+void request_stop(int) { stop_requested = 1; }
 
 void print_usage(const char* program) {
     std::cout
@@ -142,7 +141,7 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
 
-        while (!stop_requested.load()) {
+        while (stop_requested == 0) {
             const auto status = simulation.status();
             if (status == mfr3duo_mujoco::SimulationStatus::Error) {
                 std::cerr

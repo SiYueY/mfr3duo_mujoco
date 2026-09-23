@@ -1,5 +1,6 @@
 #include "mfr3duo_mujoco/simulation.hpp"
 
+#include <exception>
 #include <utility>
 
 #include "component_ids.hpp"
@@ -36,6 +37,23 @@ JointControlMode from_romujoco_mode(std::uint8_t mode) {
             return JointControlMode::Position;
     }
     return JointControlMode::Position;
+}
+
+bool valid_arm(Arm arm) noexcept {
+    return arm == Arm::Left || arm == Arm::Right;
+}
+
+bool valid_gripper(Gripper gripper) noexcept {
+    return gripper == Gripper::Left || gripper == Gripper::Right;
+}
+
+bool valid_camera(Camera camera) noexcept {
+    return static_cast<std::uint8_t>(camera) <=
+           static_cast<std::uint8_t>(Camera::HeadZedRight);
+}
+
+bool valid_lidar(Lidar lidar) noexcept {
+    return lidar == Lidar::Front || lidar == Lidar::Rear;
 }
 
 romujoco::JointCommand make_joint_command(
@@ -210,12 +228,21 @@ Simulation::Simulation() : impl_(std::make_unique<Impl>()) {}
 Simulation::~Simulation() = default;
 
 bool Simulation::initialize(const SimulationOptions& options) {
-    return impl_->simulation.initialize(detail::make_simulation_config(options));
+    try {
+        return impl_->simulation.initialize(detail::make_simulation_config(options));
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
 bool Simulation::initialize(
     const std::string& model_path, const SimulationOptions& options) {
-    return impl_->simulation.initialize(detail::make_simulation_config(model_path, options));
+    try {
+        return impl_->simulation.initialize(
+            detail::make_simulation_config(model_path, options));
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
 bool Simulation::shutdown() { return impl_->simulation.shutdown(); }
@@ -235,6 +262,7 @@ bool Simulation::reset(const std::string& keyframe_name) {
 }
 
 bool Simulation::write_command(Arm arm, const ArmCommand& command) {
+    if (!valid_arm(arm)) return false;
     const auto& ids = arm_ids(arm);
     romujoco::JointCommands commands;
     commands.reserve(kArmJointCount);
@@ -246,6 +274,7 @@ bool Simulation::write_command(Arm arm, const ArmCommand& command) {
 
 bool Simulation::write_command(
     Gripper gripper, const GripperCommand& command) {
+    if (!valid_gripper(gripper)) return false;
     romujoco::GripperCommand result;
     result.id = gripper_id(gripper);
     result.width = command.width;
@@ -307,6 +336,7 @@ bool Simulation::read_state(RobotState& state) const {
 }
 
 bool Simulation::read_state(Arm arm, ArmState& state) const {
+    if (!valid_arm(arm)) return false;
     romujoco::RobotState source;
     if (!impl_->simulation.read_state(source)) return false;
     ArmState result;
@@ -317,6 +347,7 @@ bool Simulation::read_state(Arm arm, ArmState& state) const {
 
 bool Simulation::read_state(
     Gripper gripper, GripperState& state) const {
+    if (!valid_gripper(gripper)) return false;
     romujoco::GripperState source;
     source.id = gripper_id(gripper);
     if (!impl_->simulation.read_state(source)) return false;
@@ -370,6 +401,7 @@ bool Simulation::read_state(ImuState& state) const {
 }
 
 bool Simulation::read_state(Camera camera, CameraFrame& frame) const {
+    if (!valid_camera(camera)) return false;
     romujoco::CameraState source;
     source.id = camera_id(camera);
     if (!impl_->simulation.read_state(source)) return false;
@@ -387,6 +419,7 @@ bool Simulation::read_state(Camera camera, CameraFrame& frame) const {
 }
 
 bool Simulation::read_state(Lidar lidar, LaserScan& scan) const {
+    if (!valid_lidar(lidar)) return false;
     romujoco::LaserScanState source;
     source.id = lidar_id(lidar);
     if (!impl_->simulation.read_state(source)) return false;

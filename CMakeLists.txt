@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(mfr3duo_mujoco VERSION 0.2.0 LANGUAGES CXX)
 
-if(NOT UNIX OR APPLE)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
   message(FATAL_ERROR "mfr3duo_mujoco supports Linux only.")
 endif()
 
@@ -11,7 +11,7 @@ include(CTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-find_package(romujoco CONFIG REQUIRED)
+find_package(romujoco 0.1.0 CONFIG REQUIRED)
 
 find_path(
   MFR3DUO_DESCRIPTION_SHARE_DIR
@@ -32,6 +32,11 @@ target_include_directories(${PROJECT_NAME}
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(${PROJECT_NAME} PRIVATE romujoco::romujoco)
 target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+  BUILD_RPATH_USE_ORIGIN ON
+  INSTALL_RPATH "$ORIGIN")
 
 if(MFR3DUO_DESCRIPTION_SHARE_DIR)
   target_compile_definitions(
@@ -44,10 +49,18 @@ add_executable(mfr3duo_sim tools/simulator/main.cpp)
 target_compile_features(mfr3duo_sim PRIVATE cxx_std_17)
 target_link_libraries(mfr3duo_sim PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
 target_compile_options(mfr3duo_sim PRIVATE -Wall -Wextra -Wpedantic)
+set_target_properties(mfr3duo_sim PROPERTIES
+  BUILD_RPATH_USE_ORIGIN ON
+  INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
 
 option(MFR3DUO_MUJOCO_BUILD_TELEOP "Build the keyboard teleoperation tool" ON)
 if(MFR3DUO_MUJOCO_BUILD_TELEOP)
-  find_package(pinocchio REQUIRED)
+  find_package(pinocchio 4.0 REQUIRED)
+  if(NOT TARGET pinocchio::pinocchio_parsers)
+    message(
+      FATAL_ERROR
+      "mfr3duo_teleop requires Pinocchio 4.x built with URDF parser support.")
+  endif()
 
   add_executable(
     mfr3duo_teleop
@@ -62,8 +75,12 @@ if(MFR3DUO_MUJOCO_BUILD_TELEOP)
     mfr3duo_teleop
     PRIVATE
       ${PROJECT_NAME}::${PROJECT_NAME}
-      pinocchio::pinocchio)
+      pinocchio::pinocchio
+      pinocchio::pinocchio_parsers)
   target_compile_options(mfr3duo_teleop PRIVATE -Wall -Wextra -Wpedantic)
+  set_target_properties(mfr3duo_teleop PROPERTIES
+    BUILD_RPATH_USE_ORIGIN ON
+    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
 endif()
 
 if(BUILD_TESTING)
@@ -78,13 +95,62 @@ if(BUILD_TESTING)
       romujoco::romujoco)
   add_test(NAME ${PROJECT_NAME}.config COMMAND ${PROJECT_NAME}_config_test)
 
-  add_executable(${PROJECT_NAME}_simulation_smoke_test test/simulation_smoke_test.cpp)
-  target_compile_features(${PROJECT_NAME}_simulation_smoke_test PRIVATE cxx_std_17)
-  target_link_libraries(
-    ${PROJECT_NAME}_simulation_smoke_test PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
-  add_test(
-    NAME ${PROJECT_NAME}.simulation_smoke
-    COMMAND ${PROJECT_NAME}_simulation_smoke_test)
+  if(MFR3DUO_DESCRIPTION_SHARE_DIR)
+    add_executable(${PROJECT_NAME}_simulation_smoke_test test/simulation_smoke_test.cpp)
+    target_compile_features(${PROJECT_NAME}_simulation_smoke_test PRIVATE cxx_std_17)
+    target_link_libraries(
+      ${PROJECT_NAME}_simulation_smoke_test PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
+    add_test(
+      NAME ${PROJECT_NAME}.simulation_smoke
+      COMMAND ${PROJECT_NAME}_simulation_smoke_test)
+    set_tests_properties(
+      ${PROJECT_NAME}.simulation_smoke
+      PROPERTIES ENVIRONMENT "MFR3DUO_DESCRIPTION_PATH=${MFR3DUO_DESCRIPTION_SHARE_DIR}")
+
+    if(MFR3DUO_MUJOCO_BUILD_TELEOP)
+      add_executable(
+        ${PROJECT_NAME}_kinematics_test
+        test/kinematics_test.cpp
+        tools/teleop/kinematics.cpp)
+      target_compile_features(${PROJECT_NAME}_kinematics_test PRIVATE cxx_std_17)
+      target_include_directories(
+        ${PROJECT_NAME}_kinematics_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/teleop)
+      target_compile_definitions(
+        ${PROJECT_NAME}_kinematics_test
+        PRIVATE
+          MFR3DUO_TEST_URDF_PATH="${MFR3DUO_DESCRIPTION_SHARE_DIR}/urdf/mfr3duo.urdf")
+      target_link_libraries(
+        ${PROJECT_NAME}_kinematics_test
+        PRIVATE
+          ${PROJECT_NAME}::${PROJECT_NAME}
+          pinocchio::pinocchio
+          pinocchio::pinocchio_parsers)
+      add_test(NAME ${PROJECT_NAME}.kinematics COMMAND ${PROJECT_NAME}_kinematics_test)
+
+      add_executable(
+        ${PROJECT_NAME}_teleop_smoke_test
+        test/teleop_smoke_test.cpp
+        tools/teleop/kinematics.cpp
+        tools/teleop/teleop.cpp)
+      target_compile_features(${PROJECT_NAME}_teleop_smoke_test PRIVATE cxx_std_17)
+      target_include_directories(
+        ${PROJECT_NAME}_teleop_smoke_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tools/teleop)
+      target_compile_definitions(
+        ${PROJECT_NAME}_teleop_smoke_test
+        PRIVATE
+          MFR3DUO_TEST_SCENE_PATH="${MFR3DUO_DESCRIPTION_SHARE_DIR}/mjcf/scene.xml"
+          MFR3DUO_TEST_URDF_PATH="${MFR3DUO_DESCRIPTION_SHARE_DIR}/urdf/mfr3duo.urdf")
+      target_link_libraries(
+        ${PROJECT_NAME}_teleop_smoke_test
+        PRIVATE
+          ${PROJECT_NAME}::${PROJECT_NAME}
+          pinocchio::pinocchio
+          pinocchio::pinocchio_parsers)
+      add_test(NAME ${PROJECT_NAME}.teleop_smoke COMMAND ${PROJECT_NAME}_teleop_smoke_test)
+    endif()
+  else()
+    message(STATUS "MFR3Duo model not found: runtime model tests are disabled.")
+  endif()
 endif()
 
 configure_package_config_file(

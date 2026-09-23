@@ -61,10 +61,10 @@ simulation is stopped; it is rejected while continuous execution is running or p
 - C++17
 - an installed romujoco CMake package
 - mfr3duo_description model files at runtime
-- Pinocchio for the optional teleoperation executable
+- Pinocchio 4.0+ with URDF parser support for the optional teleoperation executable
 
 The core library does not depend on Pinocchio, ROS 2, ament, DDS or ros2_control.
-Pinocchio is linked only by `mfr3duo_teleop`.
+Pinocchio is linked only by `mfr3duo_teleop`; Pinocchio 4.x parser support is required.
 
 The canonical scene resolver searches:
 
@@ -136,7 +136,9 @@ Run:
 
     ctest --test-dir build --output-on-failure
 
-The configuration test checks the complete 40-component assembly. The simulation smoke test loads the real MFR3Duo scene, advances beyond one LiDAR period and verifies the robot-level state, IMU and both LiDAR APIs.
+The configuration test checks the complete 40-component assembly. When `mfr3duo_description` is available at configure time, runtime tests also load the real scene, validate Pinocchio limits/Jacobians, exercise Cartesian teleop, and verify robot, IMU and LiDAR state access.
+
+GitHub Actions runs the full Ubuntu 22.04 build, CTest suite, installation, installed executables, and an independent `find_package(mfr3duo_mujoco)` consumer build.
 
 ## Boundary
 
