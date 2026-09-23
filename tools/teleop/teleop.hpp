@@ -29,8 +29,12 @@ public:
 
     bool initialize(
         Simulation& simulation,
+        Kinematics& kinematics);
+
+    bool initialize(
+        Simulation& simulation,
         Kinematics& kinematics,
-        const Options& options = {});
+        const Options& options);
 
     bool handle_key(
         char key,

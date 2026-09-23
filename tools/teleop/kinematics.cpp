@@ -78,7 +78,7 @@ public:
         const auto& names = joint_names(value);
         for (std::size_t index = 0; index < names.size(); ++index) {
             const pinocchio::JointIndex joint_id = model.getJointId(names[index]);
-            if (joint_id == 0 || joint_id >= model.njoints) return false;
+            if (joint_id == 0 || joint_id >= static_cast<pinocchio::JointIndex>(model.njoints)) return false;
             if (model.nqs[joint_id] != 1 || model.nvs[joint_id] != 1) return false;
 
             const int q_index = model.idx_qs[joint_id];
@@ -91,7 +91,7 @@ public:
         }
 
         const pinocchio::FrameIndex frame = model.getFrameId(tool_frame_name(value));
-        if (frame >= model.nframes) return false;
+        if (frame >= static_cast<pinocchio::FrameIndex>(model.nframes)) return false;
         target.tool_frame = frame;
         return true;
     }
@@ -110,7 +110,7 @@ bool Kinematics::initialize(const std::string& urdf_path) {
         pinocchio::urdf::buildModel(urdf_path, model);
 
         const pinocchio::JointIndex spine = model.getJointId(kSpineJoint);
-        if (spine == 0 || spine >= model.njoints || model.nqs[spine] != 1) {
+        if (spine == 0 || spine >= static_cast<pinocchio::JointIndex>(model.njoints) || model.nqs[spine] != 1) {
             return false;
         }
 
