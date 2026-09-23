@@ -72,6 +72,22 @@ simulation status is `Stopped`; it is rejected while `Running`, `Paused`,
 `Stopping`, `Error` or `Uninitialized`. Pausing continuous execution does not
 transfer ownership of time advancement to the caller.
 
+## Tools
+
+Repository executables live under `tools/`:
+
+- `tools/simulator` provides the normal `mfr3duo_sim` executable.
+- `tools/teleop` provides `mfr3duo_teleop`, which owns its own `Simulation`
+  instance and controls it directly through the public robot-level API.
+
+The teleop tool depends on Pinocchio, but the `mfr3duo_mujoco` library target
+does not. Pinocchio loads the authoritative URDF and supplies arm joint limits
+and Jacobians. Joint-space jogging integrates bounded joint velocity into
+position targets. Cartesian-space jogging maps a 6D twist through a
+damped-least-squares differential IK solve, applies joint velocity and position
+limits, and emits the same `ArmCommand` position targets. Base-frame and
+tool-frame Cartesian jogging are both supported.
+
 ## Control mapping
 
 The robot-level API uses two consistent operation families:

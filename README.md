@@ -62,8 +62,10 @@ simulation is stopped; it is rejected while continuous execution is running or p
 - C++17
 - an installed romujoco CMake package
 - mfr3duo_description model files at runtime
+- Pinocchio for the optional teleoperation executable
 
-The core library does not depend on ROS 2, ament, DDS or ros2_control.
+The core library does not depend on Pinocchio, ROS 2, ament, DDS or ros2_control.
+Pinocchio is linked only by `mfr3duo_teleop`.
 
 The canonical scene resolver searches:
 
@@ -79,7 +81,7 @@ MFR3DUO_DESCRIPTION_PATH may point to scene.xml, the mfr3duo_description package
 
 ## Build
 
-Install romujoco and make its CMake package visible, then build:
+Install romujoco and Pinocchio, make their CMake packages visible, then build:
 
     cmake -S . -B build \
       -DCMAKE_BUILD_TYPE=Release \
@@ -95,6 +97,23 @@ Run:
     ./build/mfr3duo_sim
     ./build/mfr3duo_sim --headless
     ./build/mfr3duo_sim --headless --no-cameras --steps 1000
+    ./build/mfr3duo_teleop
+
+The teleop tool is enabled by default. For a minimal build without Pinocchio:
+
+    cmake -S . -B build \
+      -DMFR3DUO_MUJOCO_BUILD_TELEOP=OFF \
+      -DCMAKE_PREFIX_PATH="$HOME/.local/romujoco"
+
+## Teleoperation
+
+`mfr3duo_teleop` directly owns a `Simulation` and supports the base, spine,
+both grippers, and both FR3 arms. Arm control supports joint-space jogging and
+Cartesian-space jogging. Cartesian commands use Pinocchio Jacobians with
+damped-least-squares differential IK and are converted back to joint position
+commands before calling `Simulation::write_command()`.
+
+See `docs/teleop.md` for key mappings, control behavior and model-path options.
 
 Build the direct-control example with:
 

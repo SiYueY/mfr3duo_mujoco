@@ -12,7 +12,6 @@ namespace mfr3duo_mujoco::teleop {
 class Teleop {
 public:
     struct Options {
-        double period{0.01};
         double arm_joint_velocity{0.30};
         double cartesian_linear_velocity{0.10};
         double cartesian_angular_velocity{0.50};

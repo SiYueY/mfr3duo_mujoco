@@ -16,25 +16,6 @@ constexpr double kGripperMin = 0.0;
 constexpr double kGripperMax = 0.08;
 constexpr double kMaxUpdatePeriod = 0.05;
 
-const char* target_name(int target) {
-    switch (target) {
-        case 0:
-            return "Base";
-        case 1:
-            return "Left Arm";
-        case 2:
-            return "Right Arm";
-        case 3:
-            return "Spine";
-        case 4:
-            return "Left Gripper";
-        case 5:
-            return "Right Gripper";
-        default:
-            return "Unknown";
-    }
-}
-
 double clamp_joint_target(
     double value, double lower, double upper, double margin) {
     if (!std::isfinite(lower) || !std::isfinite(upper)) return value;
@@ -52,8 +33,7 @@ double clamp_joint_target(
 
 bool Teleop::initialize(
     Simulation& simulation, Kinematics& kinematics, const Options& options) {
-    if (!std::isfinite(options.period) || options.period <= 0.0 ||
-        !std::isfinite(options.arm_joint_velocity) ||
+    if (!std::isfinite(options.arm_joint_velocity) ||
         options.arm_joint_velocity <= 0.0 ||
         !std::isfinite(options.cartesian_linear_velocity) ||
         options.cartesian_linear_velocity <= 0.0 ||
@@ -497,7 +477,29 @@ void Teleop::print_help() const {
 }
 
 void Teleop::print_status() const {
-    std::cout << "Target: " << target_name(static_cast<int>(target_));
+    const char* name = "Unknown";
+    switch (target_) {
+        case Target::Base:
+            name = "Base";
+            break;
+        case Target::LeftArm:
+            name = "Left Arm";
+            break;
+        case Target::RightArm:
+            name = "Right Arm";
+            break;
+        case Target::Spine:
+            name = "Spine";
+            break;
+        case Target::LeftGripper:
+            name = "Left Gripper";
+            break;
+        case Target::RightGripper:
+            name = "Right Gripper";
+            break;
+    }
+
+    std::cout << "Target: " << name;
 
     if (target_ == Target::LeftArm || target_ == Target::RightArm) {
         std::cout << " | Mode: "

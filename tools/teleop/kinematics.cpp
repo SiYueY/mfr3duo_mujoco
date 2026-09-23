@@ -8,6 +8,7 @@
 
 #include <Eigen/Core>
 
+#include "pinocchio/algorithm/frames.hpp"
 #include "pinocchio/algorithm/jacobian.hpp"
 #include "pinocchio/algorithm/joint-configuration.hpp"
 #include "pinocchio/multibody/data.hpp"
@@ -55,7 +56,6 @@ const char* tool_frame_name(Arm arm) {
 class Kinematics::Impl {
 public:
     struct ArmModel {
-        std::array<pinocchio::JointIndex, kArmJointCount> joint_ids{};
         std::array<int, kArmJointCount> q_indices{};
         std::array<int, kArmJointCount> v_indices{};
         pinocchio::FrameIndex tool_frame{0};
@@ -65,7 +65,6 @@ public:
     pinocchio::Model model;
     std::unique_ptr<pinocchio::Data> data;
     Eigen::VectorXd neutral;
-    pinocchio::JointIndex spine_joint{0};
     int spine_q_index{-1};
     ArmModel left;
     ArmModel right;
@@ -84,12 +83,11 @@ public:
 
             const int q_index = model.idx_qs[joint_id];
             const int v_index = model.idx_vs[joint_id];
-            target.joint_ids[index] = joint_id;
             target.q_indices[index] = q_index;
             target.v_indices[index] = v_index;
             target.limits.lower[index] = model.lowerPositionLimit[q_index];
             target.limits.upper[index] = model.upperPositionLimit[q_index];
-            target.limits.velocity[index] = model.velocityLimit[v_index];
+            target.limits.velocity[index] = model.upperVelocityLimit[v_index];
         }
 
         const pinocchio::FrameIndex frame = model.getFrameId(tool_frame_name(value));
@@ -119,7 +117,6 @@ bool Kinematics::initialize(const std::string& urdf_path) {
         impl_->model = std::move(model);
         impl_->data = std::make_unique<pinocchio::Data>(impl_->model);
         impl_->neutral = pinocchio::neutral(impl_->model);
-        impl_->spine_joint = spine;
         impl_->spine_q_index = impl_->model.idx_qs[spine];
 
         if (!impl_->configure_arm(Arm::Left, impl_->left) ||
