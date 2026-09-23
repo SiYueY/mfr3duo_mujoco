@@ -74,19 +74,19 @@ public:
     bool reset();
     bool reset(const std::string& keyframe_name);
 
-    bool write_arm_command(Arm arm, const ArmCommand& command);
-    bool write_gripper_command(Gripper gripper, const GripperCommand& command);
-    bool write_spine_command(const SpineCommand& command);
-    bool write_base_command(const BaseCommand& command);
+    bool write_command(Arm arm, const ArmCommand& command);
+    bool write_command(Gripper gripper, const GripperCommand& command);
+    bool write_command(const SpineCommand& command);
+    bool write_command(const BaseCommand& command);
 
     bool read_state(RobotState& state) const;
-    bool read_arm_state(Arm arm, ArmState& state) const;
-    bool read_gripper_state(Gripper gripper, GripperState& state) const;
-    bool read_spine_state(SpineState& state) const;
-    bool read_base_state(BaseState& state) const;
-    bool read_imu_state(ImuState& state) const;
-    bool read_camera(Camera camera, CameraFrame& frame) const;
-    bool read_lidar(Lidar lidar, LaserScan& scan) const;
+    bool read_state(Arm arm, ArmState& state) const;
+    bool read_state(Gripper gripper, GripperState& state) const;
+    bool read_state(SpineState& state) const;
+    bool read_state(BaseState& state) const;
+    bool read_state(ImuState& state) const;
+    bool read_state(Camera camera, CameraFrame& frame) const;
+    bool read_state(Lidar lidar, LaserScan& scan) const;
 
     /**
      * @brief Advance the simulation explicitly by a fixed number of physics steps.

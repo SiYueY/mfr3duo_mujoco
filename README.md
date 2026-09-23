@@ -8,7 +8,7 @@ It combines the authoritative model from mfr3duo_description with the generic ru
 
 The public surface is intentionally small:
 
-- simulation.hpp: lifecycle, stepping, command and state access.
+- simulation.hpp: lifecycle, stepping and overloaded command/state access.
 - config.hpp: runtime options and canonical scene resolution.
 - command.hpp: arm, spine, gripper and mobile-base commands.
 - state.hpp: robot, arm, spine, gripper, base and IMU states.
@@ -31,7 +31,7 @@ A direct control program can use the library like this:
 
     mfr3duo_mujoco::BaseCommand base;
     base.linear_x = 0.2;
-    simulation.write_base_command(base);
+    simulation.write_command(base);
 
     simulation.step(1000);
 
@@ -115,7 +115,10 @@ After installation:
       PRIVATE
         mfr3duo_mujoco::mfr3duo_mujoco)
 
-The consumer-facing headers do not expose romujoco types.
+The consumer-facing headers do not expose romujoco types. Commands and states use
+two overloaded entry points: `write_command()` and `read_state()`. Device selectors
+such as `Arm::Left`, `Gripper::Right`, `Camera::FrontColor` and `Lidar::Front`
+identify resources without exposing internal component IDs.
 
 ## Tests
 

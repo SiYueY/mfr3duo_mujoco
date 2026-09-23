@@ -25,7 +25,7 @@ The core is a standalone C++17/CMake library. It does not depend on ROS 2, ament
 The public API is organized by meaning rather than by transport or middleware:
 
     simulation.hpp
-        lifecycle, stepping and robot access
+        lifecycle, stepping and overloaded command/state access
 
     config.hpp
         runtime options and scene discovery
@@ -74,6 +74,15 @@ transfer ownership of time advancement to the caller.
 
 ## Control mapping
 
+The robot-level API uses two consistent operation families:
+
+- `write_command(...)` for every controllable robot resource.
+- `read_state(...)` for robot state and sensor snapshots.
+
+The command or state type expresses the data being transferred, while `Arm`,
+`Gripper`, `Camera` and `Lidar` act only as resource selectors when multiple
+instances of the same data type exist.
+
 The robot-level API exposes explicit MFR3Duo semantics:
 
 - Arm::Left and Arm::Right each map to seven FR3 active joints.
@@ -97,7 +106,8 @@ RobotState is one coherent low-bandwidth snapshot containing:
 
 The base quaternion is normalized at the public boundary to x/y/z/w field semantics even though MuJoCo free-joint storage is w/x/y/z.
 
-IMU is read separately because it can be disabled independently. Camera and LiDAR have dedicated APIs and also return false when the corresponding component is disabled.
+IMU, Camera and LiDAR use the same `read_state()` entry point as robot state.
+The overload returns false when an optional component is disabled or no sample is available.
 
 ## Component assembly
 

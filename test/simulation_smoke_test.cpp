@@ -40,12 +40,12 @@ int main() {
 
         const bool passed =
             check(simulation.read_state(state), "failed to read robot state") &&
-            check(simulation.read_imu_state(imu), "failed to read IMU state") &&
+            check(simulation.read_state(imu), "failed to read IMU state") &&
             check(
-                simulation.read_lidar(mfr3duo_mujoco::Lidar::Front, front_scan),
+                simulation.read_state(mfr3duo_mujoco::Lidar::Front, front_scan),
                 "failed to read front LiDAR") &&
             check(
-                simulation.read_lidar(mfr3duo_mujoco::Lidar::Rear, rear_scan),
+                simulation.read_state(mfr3duo_mujoco::Lidar::Rear, rear_scan),
                 "failed to read rear LiDAR") &&
             check(!front_scan.ranges.empty(), "front LiDAR scan is empty") &&
             check(!rear_scan.ranges.empty(), "rear LiDAR scan is empty") &&

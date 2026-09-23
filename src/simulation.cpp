@@ -234,7 +234,7 @@ bool Simulation::reset(const std::string& keyframe_name) {
     return impl_->simulation.reset(keyframe_name);
 }
 
-bool Simulation::write_arm_command(Arm arm, const ArmCommand& command) {
+bool Simulation::write_command(Arm arm, const ArmCommand& command) {
     const auto& ids = arm_ids(arm);
     romujoco::JointCommands commands;
     commands.reserve(kArmJointCount);
@@ -244,7 +244,7 @@ bool Simulation::write_arm_command(Arm arm, const ArmCommand& command) {
     return impl_->simulation.write_commands(commands);
 }
 
-bool Simulation::write_gripper_command(
+bool Simulation::write_command(
     Gripper gripper, const GripperCommand& command) {
     romujoco::GripperCommand result;
     result.id = gripper_id(gripper);
@@ -254,12 +254,12 @@ bool Simulation::write_gripper_command(
     return impl_->simulation.write_command(result);
 }
 
-bool Simulation::write_spine_command(const SpineCommand& command) {
+bool Simulation::write_command(const SpineCommand& command) {
     return impl_->simulation.write_command(
         make_joint_command(detail::component_ids::joint::kSpine, command));
 }
 
-bool Simulation::write_base_command(const BaseCommand& command) {
+bool Simulation::write_command(const BaseCommand& command) {
     romujoco::MobileBaseCommand result;
     result.id = detail::component_ids::mobile_base::kTmr;
     result.velocity.linear_x = command.linear_x;
@@ -306,7 +306,7 @@ bool Simulation::read_state(RobotState& state) const {
     return true;
 }
 
-bool Simulation::read_arm_state(Arm arm, ArmState& state) const {
+bool Simulation::read_state(Arm arm, ArmState& state) const {
     romujoco::RobotState source;
     if (!impl_->simulation.read_state(source)) return false;
     ArmState result;
@@ -315,7 +315,7 @@ bool Simulation::read_arm_state(Arm arm, ArmState& state) const {
     return true;
 }
 
-bool Simulation::read_gripper_state(
+bool Simulation::read_state(
     Gripper gripper, GripperState& state) const {
     romujoco::GripperState source;
     source.id = gripper_id(gripper);
@@ -324,7 +324,7 @@ bool Simulation::read_gripper_state(
     return true;
 }
 
-bool Simulation::read_spine_state(SpineState& state) const {
+bool Simulation::read_state(SpineState& state) const {
     romujoco::JointState source;
     source.id = detail::component_ids::joint::kSpine;
     if (!impl_->simulation.read_state(source)) return false;
@@ -332,7 +332,7 @@ bool Simulation::read_spine_state(SpineState& state) const {
     return true;
 }
 
-bool Simulation::read_base_state(BaseState& state) const {
+bool Simulation::read_state(BaseState& state) const {
     romujoco::MobileBaseState source;
     source.id = detail::component_ids::mobile_base::kTmr;
     if (!impl_->simulation.read_state(source)) return false;
@@ -340,7 +340,7 @@ bool Simulation::read_base_state(BaseState& state) const {
     return true;
 }
 
-bool Simulation::read_imu_state(ImuState& state) const {
+bool Simulation::read_state(ImuState& state) const {
     romujoco::ImuState source;
     source.id = detail::component_ids::imu::kBase;
     if (!impl_->simulation.read_state(source)) return false;
@@ -369,7 +369,7 @@ bool Simulation::read_imu_state(ImuState& state) const {
     return true;
 }
 
-bool Simulation::read_camera(Camera camera, CameraFrame& frame) const {
+bool Simulation::read_state(Camera camera, CameraFrame& frame) const {
     romujoco::CameraState source;
     source.id = camera_id(camera);
     if (!impl_->simulation.read_state(source)) return false;
@@ -386,7 +386,7 @@ bool Simulation::read_camera(Camera camera, CameraFrame& frame) const {
     return true;
 }
 
-bool Simulation::read_lidar(Lidar lidar, LaserScan& scan) const {
+bool Simulation::read_state(Lidar lidar, LaserScan& scan) const {
     romujoco::LaserScanState source;
     source.id = lidar_id(lidar);
     if (!impl_->simulation.read_state(source)) return false;

@@ -15,7 +15,7 @@ int main() {
     }
 
     mfr3duo_mujoco::ArmState left_state;
-    if (!simulation.read_arm_state(mfr3duo_mujoco::Arm::Left, left_state)) {
+    if (!simulation.read_state(mfr3duo_mujoco::Arm::Left, left_state)) {
         return EXIT_FAILURE;
     }
 
@@ -26,13 +26,13 @@ int main() {
     }
     left_command.joints[0].position += 0.2;
 
-    if (!simulation.write_arm_command(mfr3duo_mujoco::Arm::Left, left_command)) {
+    if (!simulation.write_command(mfr3duo_mujoco::Arm::Left, left_command)) {
         return EXIT_FAILURE;
     }
 
     mfr3duo_mujoco::BaseCommand base_command;
     base_command.linear_x = 0.2;
-    if (!simulation.write_base_command(base_command)) {
+    if (!simulation.write_command(base_command)) {
         return EXIT_FAILURE;
     }
 
