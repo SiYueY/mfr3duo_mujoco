@@ -56,7 +56,11 @@ if(BUILD_TESTING)
   target_compile_features(${PROJECT_NAME}_config_test PRIVATE cxx_std_17)
   target_include_directories(
     ${PROJECT_NAME}_config_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  target_link_libraries(${PROJECT_NAME}_config_test PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
+  target_link_libraries(
+    ${PROJECT_NAME}_config_test
+    PRIVATE
+      ${PROJECT_NAME}::${PROJECT_NAME}
+      romujoco::romujoco)
   add_test(NAME ${PROJECT_NAME}.config COMMAND ${PROJECT_NAME}_config_test)
 
   add_executable(${PROJECT_NAME}_simulation_smoke_test test/simulation_smoke_test.cpp)
