@@ -28,11 +28,13 @@ target_link_libraries(mfr3duo_sim PRIVATE ${PROJECT_NAME})
 target_compile_options(mfr3duo_sim PRIVATE -Wall -Wextra -Wpedantic)
 
 install(
-  TARGETS ${PROJECT_NAME} mfr3duo_sim
+  TARGETS ${PROJECT_NAME}
   EXPORT export_${PROJECT_NAME}
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib)
+install(
+  TARGETS mfr3duo_sim
+  RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY docs DESTINATION share/${PROJECT_NAME})
 
