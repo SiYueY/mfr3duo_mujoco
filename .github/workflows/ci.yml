@@ -80,6 +80,9 @@ jobs:
       - name: Test
         run: ctest --test-dir build/mfr3duo --output-on-failure
 
+      - name: Performance diagnostic
+        run: ./build/mfr3duo/mfr3duo_mujoco_performance_benchmark
+
       - name: Install
         run: cmake --install build/mfr3duo
 

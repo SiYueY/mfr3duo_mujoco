@@ -142,6 +142,21 @@ if(BUILD_TESTING)
       ${PROJECT_NAME}.simulation_smoke
       PROPERTIES ENVIRONMENT "MFR3DUO_DESCRIPTION_PATH=${MFR3DUO_DESCRIPTION_SHARE_DIR}")
 
+    add_executable(
+      ${PROJECT_NAME}_performance_benchmark
+      test/performance_benchmark.cpp)
+    target_compile_features(
+      ${PROJECT_NAME}_performance_benchmark PRIVATE cxx_std_17)
+    target_compile_definitions(
+      ${PROJECT_NAME}_performance_benchmark
+      PRIVATE
+        MFR3DUO_TEST_SCENE_PATH="${MFR3DUO_DESCRIPTION_SHARE_DIR}/mjcf/scene.xml")
+    target_link_libraries(
+      ${PROJECT_NAME}_performance_benchmark
+      PRIVATE
+        ${PROJECT_NAME}::${PROJECT_NAME}
+        mujoco::mujoco)
+
     if(MFR3DUO_MUJOCO_BUILD_TELEOP)
       add_executable(
         ${PROJECT_NAME}_kinematics_test
