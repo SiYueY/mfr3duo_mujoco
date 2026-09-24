@@ -86,6 +86,35 @@ int main() {
     std::cout << "mjData buffer=" << data->nbuffer
               << " bytes arena=" << data->narena << " bytes\n";
 
+    ModelPtr viewer_model(mj_copyModel(nullptr, model.get()));
+    DataPtr viewer_data(viewer_model ? mj_makeData(viewer_model.get()) : nullptr);
+    if (!viewer_model || !viewer_data) return EXIT_FAILURE;
+
+    mjvCamera camera;
+    mjvOption visual_options;
+    mjvPerturb perturb;
+    mjvScene scene;
+    mjv_defaultCamera(&camera);
+    mjv_defaultOption(&visual_options);
+    mjv_defaultPerturb(&perturb);
+    mjv_defaultScene(&scene);
+    mjv_makeScene(viewer_model.get(), &scene, 10000);
+
+    const double viewer_cpu = measure([&] {
+        mjv_copyModel(viewer_model.get(), model.get());
+        mjv_copyData(viewer_data.get(), viewer_model.get(), data.get());
+        mjv_updateScene(
+            viewer_model.get(),
+            viewer_data.get(),
+            &visual_options,
+            &perturb,
+            &camera,
+            mjCAT_ALL,
+            &scene);
+    });
+    print_result("viewer CPU sync", viewer_cpu);
+    mjv_freeScene(&scene);
+
     mfr3duo_mujoco::SimulationOptions options;
     options.viewer_enabled = false;
     options.cameras_enabled = false;
