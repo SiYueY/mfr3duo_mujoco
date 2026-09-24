@@ -41,9 +41,7 @@ public:
         std::chrono::steady_clock::time_point now,
         bool& exit_requested);
 
-    bool update(
-        std::chrono::steady_clock::time_point now,
-        double dt);
+    bool update(std::chrono::steady_clock::time_point now);
 
     bool stop_motion();
     bool synchronize();
@@ -71,6 +69,7 @@ private:
         Arm arm,
         char key,
         double dt,
+        const RobotState& state,
         std::array<double, kArmJointCount>& target,
         const ArmJointLimits& limits);
     bool update_spine(char key, double dt);
@@ -111,6 +110,7 @@ private:
 
     char active_key_{0};
     std::chrono::steady_clock::time_point input_deadline_{};
+    double last_simulation_time_{0.0};
 };
 
 }  // namespace mfr3duo_mujoco::teleop

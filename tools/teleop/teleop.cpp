@@ -166,15 +166,23 @@ bool Teleop::handle_key(
     return true;
 }
 
-bool Teleop::update(
-    std::chrono::steady_clock::time_point now,
-    double dt) {
-    if (simulation_ == nullptr || kinematics_ == nullptr ||
-        !std::isfinite(dt) || dt < 0.0) {
+bool Teleop::update(std::chrono::steady_clock::time_point now) {
+    if (simulation_ == nullptr || kinematics_ == nullptr) return false;
+
+    RobotState state;
+    if (!simulation_->read_state(state) ||
+        !std::isfinite(state.simulation_time) ||
+        state.simulation_time < 0.0) {
         return false;
     }
 
+    double dt = 0.0;
+    if (state.simulation_time >= last_simulation_time_) {
+        dt = state.simulation_time - last_simulation_time_;
+    }
+    last_simulation_time_ = state.simulation_time;
     dt = std::min(dt, kMaxUpdatePeriod);
+
     if (now >= input_deadline_) active_key_ = 0;
 
     switch (target_) {
@@ -185,6 +193,7 @@ bool Teleop::update(
                 Arm::Left,
                 active_key_,
                 dt,
+                state,
                 left_arm_target_,
                 left_arm_limits_);
         case Target::RightArm:
@@ -192,6 +201,7 @@ bool Teleop::update(
                 Arm::Right,
                 active_key_,
                 dt,
+                state,
                 right_arm_target_,
                 right_arm_limits_);
         case Target::Spine:
@@ -235,6 +245,7 @@ bool Teleop::synchronize() {
     right_gripper_target_ = state.right_gripper.width;
     active_key_ = 0;
     input_deadline_ = {};
+    last_simulation_time_ = state.simulation_time;
     return true;
 }
 
@@ -269,6 +280,7 @@ bool Teleop::update_arm(
     Arm arm,
     char key,
     double dt,
+    const RobotState& state,
     std::array<double, kArmJointCount>& target,
     const ArmJointLimits& limits) {
     std::array<double, kArmJointCount> velocity{};
@@ -323,9 +335,6 @@ bool Teleop::update_arm(
             default:
                 break;
         }
-
-        RobotState state;
-        if (!simulation_->read_state(state)) return false;
 
         std::array<double, kArmJointCount> measured{};
         const ArmState& arm_state =

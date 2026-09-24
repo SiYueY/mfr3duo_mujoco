@@ -128,8 +128,7 @@ int main(int argc, char** argv) {
         teleop.print_status();
 
         constexpr auto period = std::chrono::milliseconds(10);
-        auto previous = Clock::now();
-        auto next = previous + period;
+        auto next = Clock::now() + period;
         bool failed = false;
 
         while (stop_requested == 0) {
@@ -149,11 +148,8 @@ int main(int argc, char** argv) {
             if (failed || stop_requested != 0) break;
 
             const auto now = Clock::now();
-            const double dt =
-                std::chrono::duration<double>(now - previous).count();
-            previous = now;
 
-            if (!teleop.update(now, dt)) {
+            if (!teleop.update(now)) {
                 std::cerr << "teleop control update failed\n";
                 failed = true;
                 break;

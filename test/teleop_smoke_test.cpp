@@ -44,15 +44,67 @@ int main() {
 
     const auto now = std::chrono::steady_clock::now();
     bool exit_requested = false;
-    const bool passed =
+    bool passed =
         check(teleop.handle_key('L', now, exit_requested), "select left arm") &&
         check(!exit_requested, "unexpected exit request") &&
         check(teleop.handle_key('M', now, exit_requested), "select Cartesian mode") &&
         check(teleop.handle_key('w', now, exit_requested), "Cartesian input") &&
-        check(teleop.update(now + std::chrono::milliseconds(10), 0.01), "Cartesian update") &&
+        check(simulation.step(), "step before Cartesian update") &&
+        check(teleop.update(now + std::chrono::milliseconds(10)), "Cartesian update") &&
         check(simulation.step(), "step after Cartesian command") &&
-        check(teleop.stop_motion(), "stop motion") &&
-        check(simulation.shutdown(), "shutdown");
+        check(teleop.stop_motion(), "stop motion");
+
+    if (!passed) {
+        simulation.shutdown();
+        return EXIT_FAILURE;
+    }
+
+    RobotState initial;
+    passed =
+        check(simulation.reset("home"), "reset home") &&
+        check(teleop.stop_motion(), "resynchronize after reset") &&
+        check(simulation.read_state(initial), "read initial state") &&
+        check(teleop.handle_key('R', now, exit_requested), "select right arm") &&
+        check(teleop.handle_key('1', now, exit_requested), "select right joint 1") &&
+        check(teleop.handle_key('=', now, exit_requested), "right joint positive input");
+
+    auto control_time = now;
+    for (int index = 0; passed && index < 200; ++index) {
+        control_time += std::chrono::milliseconds(1);
+        passed =
+            check(simulation.step(), "right arm isolation step") &&
+            check(teleop.update(control_time), "right arm isolation update");
+    }
+
+    RobotState final_state;
+    if (passed) {
+        passed = check(simulation.read_state(final_state), "read final state");
+    }
+
+    if (passed) {
+        const double right_joint_motion =
+            final_state.right_arm.joints[0].position -
+            initial.right_arm.joints[0].position;
+        const double spine_motion =
+            std::abs(final_state.spine.position - initial.spine.position);
+        const double base_lateral_motion =
+            std::abs(final_state.base.pose.position.y - initial.base.pose.position.y);
+
+        std::cout
+            << "right_joint_1_motion=" << right_joint_motion
+            << " spine_motion=" << spine_motion
+            << " base_lateral_motion=" << base_lateral_motion << '\n';
+
+        passed =
+            check(right_joint_motion > 0.02, "right joint 1 did not move") &&
+            check(spine_motion < 0.02, "spine moved excessively") &&
+            check(base_lateral_motion < 0.05, "base moved laterally excessively");
+    }
+
+    passed =
+        check(teleop.stop_motion(), "final stop motion") &&
+        check(simulation.shutdown(), "shutdown") &&
+        passed;
 
     return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 }
