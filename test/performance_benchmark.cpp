@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <mujoco/mujoco.h>
 
@@ -119,6 +120,25 @@ int main() {
             &scene);
     });
     print_result("viewer mjv_updateScene", viewer_update_scene);
+
+    const int integration_state_size =
+        mj_stateSize(model.get(), mjSTATE_INTEGRATION);
+    std::vector<mjtNum> integration_state(
+        static_cast<std::size_t>(integration_state_size));
+    const double viewer_state_only = measure([&] {
+        mj_getState(
+            model.get(),
+            data.get(),
+            integration_state.data(),
+            mjSTATE_INTEGRATION);
+        mj_setState(
+            viewer_model.get(),
+            viewer_data.get(),
+            integration_state.data(),
+            mjSTATE_INTEGRATION);
+        mj_forward(viewer_model.get(), viewer_data.get());
+    });
+    print_result("viewer state-only sync", viewer_state_only);
 
     const double viewer_cpu = measure([&] {
         mjv_copyModel(viewer_model.get(), model.get());
