@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include <mujoco/mujoco.h>
 
@@ -77,6 +78,14 @@ int main() {
     });
     print_result("mj_forward + mj_step", forward_step);
 
+    DataPtr copy_target(mj_makeData(model.get()));
+    if (!copy_target) return EXIT_FAILURE;
+    const double copy_data =
+        measure([&] { mj_copyData(copy_target.get(), model.get(), data.get()); });
+    print_result("raw mj_copyData", copy_data);
+    std::cout << "mjData buffer=" << data->nbuffer
+              << " bytes arena=" << data->narena << " bytes\n";
+
     mfr3duo_mujoco::SimulationOptions options;
     options.viewer_enabled = false;
     options.cameras_enabled = false;
@@ -101,5 +110,33 @@ int main() {
     print_result("romujoco full tick", framework);
 
     if (!simulation.shutdown()) return EXIT_FAILURE;
+
+    mfr3duo_mujoco::Simulation continuous;
+    if (!continuous.initialize(MFR3DUO_TEST_SCENE_PATH, options) ||
+        !continuous.start()) {
+        std::cerr << "failed to start continuous headless benchmark\n";
+        continuous.shutdown();
+        return EXIT_FAILURE;
+    }
+
+    const auto continuous_begin = std::chrono::steady_clock::now();
+    const double simulation_begin = continuous.time();
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    const auto continuous_end = std::chrono::steady_clock::now();
+    const double simulation_end = continuous.time();
+    if (!continuous.stop()) {
+        continuous.shutdown();
+        return EXIT_FAILURE;
+    }
+    const double continuous_wall =
+        std::chrono::duration<double>(continuous_end - continuous_begin).count();
+    const double continuous_simulation = simulation_end - simulation_begin;
+    std::cout << std::left << std::setw(24) << "continuous headless"
+              << " wall=" << std::fixed << std::setprecision(6) << continuous_wall
+              << " s  sim=" << continuous_simulation
+              << " s  rtf=" << std::setprecision(3)
+              << continuous_simulation / continuous_wall << '\n';
+
+    if (!continuous.shutdown()) return EXIT_FAILURE;
     return EXIT_SUCCESS;
 }
