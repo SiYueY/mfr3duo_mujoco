@@ -100,6 +100,26 @@ int main() {
     mjv_defaultScene(&scene);
     mjv_makeScene(viewer_model.get(), &scene, 10000);
 
+    const double viewer_copy_model =
+        measure([&] { mjv_copyModel(viewer_model.get(), model.get()); });
+    print_result("viewer mjv_copyModel", viewer_copy_model);
+
+    const double viewer_copy_data =
+        measure([&] { mjv_copyData(viewer_data.get(), viewer_model.get(), data.get()); });
+    print_result("viewer mjv_copyData", viewer_copy_data);
+
+    const double viewer_update_scene = measure([&] {
+        mjv_updateScene(
+            viewer_model.get(),
+            viewer_data.get(),
+            &visual_options,
+            &perturb,
+            &camera,
+            mjCAT_ALL,
+            &scene);
+    });
+    print_result("viewer mjv_updateScene", viewer_update_scene);
+
     const double viewer_cpu = measure([&] {
         mjv_copyModel(viewer_model.get(), model.get());
         mjv_copyData(viewer_data.get(), viewer_model.get(), data.get());
