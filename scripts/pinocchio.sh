@@ -42,13 +42,17 @@ platform_name() {
 
 installed_version() {
     local metadata
-    metadata="$(find "${PINOCCHIO_PREFIX}/conda-meta"         -maxdepth 1 -type f -name 'pinocchio-*.json' -print -quit 2>/dev/null || true)"
+
+    metadata="$(
+        find "${PINOCCHIO_PREFIX}/conda-meta" -maxdepth 1 -type f             -name 'pinocchio-*.json' -print -quit 2>/dev/null || true
+    )"
 
     if [[ -z "${metadata}" ]]; then
         return 1
     fi
 
-    sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "${metadata}" | head -n 1
+    sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' "${metadata}" |
+        head -n 1
 }
 
 verify_installation() {
@@ -119,7 +123,15 @@ install_pinocchio() {
     echo "Installing Pinocchio ${PINOCCHIO_VERSION} into:"
     echo "  ${PINOCCHIO_PREFIX}"
 
-    MAMBA_ROOT_PREFIX="${PRIVATE_MAMBA_ROOT}" "${MICROMAMBA}" create         --yes         --prefix "${PINOCCHIO_PREFIX}"         --override-channels         --channel conda-forge         "pinocchio=${PINOCCHIO_VERSION}"
+    local create_args=(
+        --yes
+        --prefix "${PINOCCHIO_PREFIX}"
+        --override-channels
+        --channel conda-forge
+        "pinocchio=${PINOCCHIO_VERSION}"
+    )
+
+    MAMBA_ROOT_PREFIX="${PRIVATE_MAMBA_ROOT}"         "${MICROMAMBA}" create "${create_args[@]}"
 
     verify_installation
     echo "Private Pinocchio installation is ready."
