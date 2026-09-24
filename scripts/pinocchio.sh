@@ -6,10 +6,10 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 readonly THIRD_PARTY_DIR="${PROJECT_DIR}/third_party"
 readonly PINOCCHIO_DIR="${THIRD_PARTY_DIR}/pinocchio"
-readonly PINOCCHIO_PREFIX="${PINOCCHIO_DIR}/install"
-readonly MICROMAMBA_DIR="${THIRD_PARTY_DIR}/.tools/micromamba"
+readonly PINOCCHIO_PREFIX="${MFR3DUO_MUJOCO_PINOCCHIO_PREFIX:-${PINOCCHIO_DIR}/install}"
+readonly MICROMAMBA_DIR="${MFR3DUO_MUJOCO_MICROMAMBA_DIR:-${THIRD_PARTY_DIR}/.tools/micromamba}"
 readonly MICROMAMBA="${MICROMAMBA_DIR}/micromamba"
-readonly PRIVATE_MAMBA_ROOT="${THIRD_PARTY_DIR}/.micromamba"
+readonly PRIVATE_MAMBA_ROOT="${MFR3DUO_MUJOCO_MAMBA_ROOT:-${THIRD_PARTY_DIR}/.micromamba}"
 readonly PINOCCHIO_VERSION="4.1.0"
 
 usage() {
@@ -22,6 +22,11 @@ Commands:
   version   Print the expected and installed Pinocchio versions.
   remove    Remove the private Pinocchio installation.
   purge     Remove Pinocchio, the private micromamba binary and its package cache.
+
+Optional path overrides:
+  MFR3DUO_MUJOCO_PINOCCHIO_PREFIX  Pinocchio environment prefix.
+  MFR3DUO_MUJOCO_MICROMAMBA_DIR    Directory for the private micromamba binary.
+  MFR3DUO_MUJOCO_MAMBA_ROOT        Directory for micromamba's private package cache.
 EOF
 }
 
