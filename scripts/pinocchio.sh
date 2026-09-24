@@ -9,7 +9,7 @@ readonly PINOCCHIO_DIR="${THIRD_PARTY_DIR}/pinocchio"
 readonly PINOCCHIO_PREFIX="${PINOCCHIO_DIR}/install"
 readonly MICROMAMBA_DIR="${THIRD_PARTY_DIR}/.tools/micromamba"
 readonly MICROMAMBA="${MICROMAMBA_DIR}/micromamba"
-readonly MAMBA_ROOT_PREFIX="${THIRD_PARTY_DIR}/.micromamba"
+readonly PRIVATE_MAMBA_ROOT="${THIRD_PARTY_DIR}/.micromamba"
 readonly PINOCCHIO_VERSION="4.1.0"
 
 usage() {
@@ -114,12 +114,12 @@ install_pinocchio() {
     bootstrap_micromamba
 
     rm -rf "${PINOCCHIO_PREFIX}"
-    mkdir -p "${PINOCCHIO_DIR}" "${MAMBA_ROOT_PREFIX}"
+    mkdir -p "${PINOCCHIO_DIR}" "${PRIVATE_MAMBA_ROOT}"
 
     echo "Installing Pinocchio ${PINOCCHIO_VERSION} into:"
     echo "  ${PINOCCHIO_PREFIX}"
 
-    MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX}" "${MICROMAMBA}" create         --yes         --prefix "${PINOCCHIO_PREFIX}"         --override-channels         --channel conda-forge         "pinocchio=${PINOCCHIO_VERSION}"
+    MAMBA_ROOT_PREFIX="${PRIVATE_MAMBA_ROOT}" "${MICROMAMBA}" create         --yes         --prefix "${PINOCCHIO_PREFIX}"         --override-channels         --channel conda-forge         "pinocchio=${PINOCCHIO_VERSION}"
 
     verify_installation
     echo "Private Pinocchio installation is ready."
@@ -150,7 +150,7 @@ remove_pinocchio() {
 }
 
 purge_pinocchio() {
-    rm -rf "${PINOCCHIO_DIR}" "${MICROMAMBA_DIR}" "${MAMBA_ROOT_PREFIX}"
+    rm -rf "${PINOCCHIO_DIR}" "${MICROMAMBA_DIR}" "${PRIVATE_MAMBA_ROOT}"
     echo "Removed all project-private Pinocchio and micromamba data."
 }
 
