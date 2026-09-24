@@ -61,10 +61,12 @@ simulation is stopped; it is rejected while continuous execution is running or p
 - C++17
 - an installed romujoco CMake package
 - mfr3duo_description model files at runtime
-- Pinocchio 4.0+ with URDF parser support for the optional teleoperation executable
+- project-private Pinocchio 4.1.0 with URDF parser support for the optional teleoperation executable
 
 The core library does not depend on Pinocchio, ROS 2, ament, DDS or ros2_control.
-Pinocchio is linked only by `mfr3duo_teleop`; Pinocchio 4.x parser support is required.
+Pinocchio is linked only by `mfr3duo_teleop`. The project does not use or replace
+a system Pinocchio installation; the default private prefix is
+`third_party/pinocchio/install`.
 
 The canonical scene resolver searches:
 
@@ -80,7 +82,15 @@ MFR3DUO_DESCRIPTION_PATH may point to scene.xml, the mfr3duo_description package
 
 ## Build
 
-Install romujoco and Pinocchio, make their CMake packages visible, then build:
+Install romujoco, then install the project-private Pinocchio used by teleop:
+
+    ./scripts/pinocchio.sh install
+
+This installs Pinocchio 4.1.0 and its runtime dependencies under
+`third_party/pinocchio/install`. It does not modify the system Pinocchio,
+shell startup files or global environment variables.
+
+Then build normally:
 
     cmake -S . -B build \
       -DCMAKE_BUILD_TYPE=Release \
@@ -98,7 +108,15 @@ Run:
     ./build/mfr3duo_sim --headless --no-cameras --steps 1000
     ./build/mfr3duo_teleop
 
-The teleop tool is enabled by default. For a minimal build without Pinocchio:
+The teleop tool is enabled by default. CMake intentionally ignores system
+Pinocchio installations for this target. If the private Pinocchio is missing,
+run `./scripts/pinocchio.sh install`.
+
+A different private Pinocchio 4.1.0 prefix can be selected with:
+
+    -DMFR3DUO_MUJOCO_PINOCCHIO_PREFIX=/absolute/private/prefix
+
+For a minimal build without Pinocchio:
 
     cmake -S . -B build \
       -DMFR3DUO_MUJOCO_BUILD_TELEOP=OFF \
@@ -138,7 +156,10 @@ Run:
 
 The configuration test checks the complete 40-component assembly. When `mfr3duo_description` is available at configure time, runtime tests also load the real scene, validate Pinocchio limits/Jacobians, exercise Cartesian teleop, and verify robot, IMU and LiDAR state access.
 
-GitHub Actions runs the full Ubuntu 22.04 build, CTest suite, installation, installed executables, and an independent `find_package(mfr3duo_mujoco)` consumer build.
+GitHub Actions installs Pinocchio through `scripts/pinocchio.sh` into the
+project-private prefix, then runs the full Ubuntu 22.04 build, CTest suite,
+installation, installed executables, and an independent
+`find_package(mfr3duo_mujoco)` consumer build.
 
 ## Boundary
 

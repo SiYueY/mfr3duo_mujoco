@@ -54,13 +54,46 @@ set_target_properties(mfr3duo_sim PROPERTIES
   INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
 
 option(MFR3DUO_MUJOCO_BUILD_TELEOP "Build the keyboard teleoperation tool" ON)
-if(MFR3DUO_MUJOCO_BUILD_TELEOP)
-  find_package(pinocchio 4.0 REQUIRED)
+set(
+  MFR3DUO_MUJOCO_PINOCCHIO_PREFIX
+  "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pinocchio/install"
+  CACHE PATH
+  "Private Pinocchio 4.1.0 installation prefix used by mfr3duo_teleop")
+
+function(mfr3duo_find_private_pinocchio)
+  if(NOT EXISTS "${MFR3DUO_MUJOCO_PINOCCHIO_PREFIX}")
+    message(
+      FATAL_ERROR
+      "Private Pinocchio 4.1.0 is not installed.\n"
+      "Run: ./scripts/pinocchio.sh install\n"
+      "Or disable teleop with -DMFR3DUO_MUJOCO_BUILD_TELEOP=OFF.")
+  endif()
+
+  set(CMAKE_PREFIX_PATH
+      "${MFR3DUO_MUJOCO_PINOCCHIO_PREFIX};${CMAKE_PREFIX_PATH}")
+  find_package(
+    pinocchio 4.1.0 EXACT CONFIG REQUIRED
+    PATHS "${MFR3DUO_MUJOCO_PINOCCHIO_PREFIX}"
+    NO_DEFAULT_PATH)
+
   if(NOT TARGET pinocchio::pinocchio_parsers)
     message(
       FATAL_ERROR
-      "mfr3duo_teleop requires Pinocchio 4.x built with URDF parser support.")
+      "The private Pinocchio installation does not provide URDF parser support.")
   endif()
+endfunction()
+
+function(mfr3duo_configure_pinocchio_runtime target)
+  target_link_directories(
+    ${target}
+    PRIVATE "${MFR3DUO_MUJOCO_PINOCCHIO_PREFIX}/lib")
+  set_property(
+    TARGET ${target}
+    APPEND PROPERTY BUILD_RPATH "${MFR3DUO_MUJOCO_PINOCCHIO_PREFIX}/lib")
+endfunction()
+
+if(MFR3DUO_MUJOCO_BUILD_TELEOP)
+  mfr3duo_find_private_pinocchio()
 
   add_executable(
     mfr3duo_teleop
@@ -78,9 +111,11 @@ if(MFR3DUO_MUJOCO_BUILD_TELEOP)
       pinocchio::pinocchio
       pinocchio::pinocchio_parsers)
   target_compile_options(mfr3duo_teleop PRIVATE -Wall -Wextra -Wpedantic)
+  mfr3duo_configure_pinocchio_runtime(mfr3duo_teleop)
   set_target_properties(mfr3duo_teleop PROPERTIES
     BUILD_RPATH_USE_ORIGIN ON
-    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+    INSTALL_RPATH
+      "$ORIGIN/../${CMAKE_INSTALL_LIBDIR};${MFR3DUO_MUJOCO_PINOCCHIO_PREFIX}/lib")
 endif()
 
 if(BUILD_TESTING)
@@ -125,6 +160,7 @@ if(BUILD_TESTING)
           ${PROJECT_NAME}::${PROJECT_NAME}
           pinocchio::pinocchio
           pinocchio::pinocchio_parsers)
+      mfr3duo_configure_pinocchio_runtime(${PROJECT_NAME}_kinematics_test)
       add_test(NAME ${PROJECT_NAME}.kinematics COMMAND ${PROJECT_NAME}_kinematics_test)
 
       add_executable(
@@ -146,6 +182,7 @@ if(BUILD_TESTING)
           ${PROJECT_NAME}::${PROJECT_NAME}
           pinocchio::pinocchio
           pinocchio::pinocchio_parsers)
+      mfr3duo_configure_pinocchio_runtime(${PROJECT_NAME}_teleop_smoke_test)
       add_test(NAME ${PROJECT_NAME}.teleop_smoke COMMAND ${PROJECT_NAME}_teleop_smoke_test)
     endif()
   else()

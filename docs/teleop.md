@@ -2,7 +2,10 @@
 
 `mfr3duo_teleop` is the interactive keyboard teleoperation tool for the Mobile FR3 Duo simulation. It links directly against `mfr3duo_mujoco` and owns its own `Simulation`; it does not communicate with a separately running `mfr3duo_sim` process.
 
-Pinocchio is a dependency of the teleop tool only. The `mfr3duo_mujoco` library target does not link against Pinocchio.
+Pinocchio is a dependency of the teleop tool only. The `mfr3duo_mujoco` library
+target does not link against Pinocchio. Teleop uses a project-private Pinocchio
+4.1.0 installation under `third_party/pinocchio/install` by default; a system
+Pinocchio installation is not modified or used.
 
 ## Control model
 
@@ -96,7 +99,19 @@ Terminal keyboards do not expose reliable key-release events. Motion keys theref
 
 ## Build
 
-The teleop tool is enabled by default:
+The teleop tool is enabled by default. Install its private Pinocchio first:
+
+```bash
+./scripts/pinocchio.sh install
+./scripts/pinocchio.sh status
+```
+
+The script bootstraps a project-private micromamba executable when necessary and
+creates `third_party/pinocchio/install` with Pinocchio 4.1.0 and its runtime
+dependencies. It does not activate an environment, edit shell startup files or
+export global library paths.
+
+Then configure and build normally:
 
 ```bash
 cmake -S . -B build \
@@ -105,7 +120,9 @@ cmake -S . -B build \
 cmake --build build -j
 ```
 
-The build requires a discoverable Pinocchio CMake package and links the tool to `pinocchio::pinocchio`.
+CMake requires the private Pinocchio 4.1.0 package and its
+`pinocchio::pinocchio_parsers` target. It intentionally does not fall back to
+an older system Pinocchio such as 3.4.0.
 
 For a minimal library/simulator build without Pinocchio:
 

@@ -33,26 +33,22 @@ jobs:
           ref: develop
           path: mfr3duo_description
 
-      - name: Install Pinocchio 4.1
-        uses: mamba-org/setup-micromamba@v2
-        with:
-          environment-name: ci
-          create-args: >-
-            pinocchio=4.1.0
-
-      - name: Use Pinocchio C++ runtime
-        run: |
-          echo "LIBRARY_PATH=$CONDA_PREFIX/lib${LIBRARY_PATH:+:$LIBRARY_PATH}" >> "$GITHUB_ENV"
-          echo "LD_LIBRARY_PATH=$CONDA_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" >> "$GITHUB_ENV"
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            bzip2 \
+            curl \
             libegl1-mesa-dev \
             libgl1-mesa-dev \
             libglfw3-dev \
             ninja-build
+
+      - name: Install private Pinocchio
+        run: |
+          cd mfr3duo_mujoco
+          ./scripts/pinocchio.sh install
+          ./scripts/pinocchio.sh status
 
       - name: Build bundled MuJoCo
         run: |
@@ -73,7 +69,7 @@ jobs:
           cmake -S mfr3duo_mujoco -B build/mfr3duo -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/install" \
-            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install;$CONDA_PREFIX" \
+            -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/install" \
             -DMFR3DUO_DESCRIPTION_SHARE_DIR="$GITHUB_WORKSPACE/mfr3duo_description" \
             -DMFR3DUO_MUJOCO_BUILD_TELEOP=ON \
             -DBUILD_TESTING=ON
@@ -92,6 +88,7 @@ jobs:
           "$GITHUB_WORKSPACE/install/bin/mfr3duo_sim" --help
           "$GITHUB_WORKSPACE/install/bin/mfr3duo_teleop" --help
           readelf -d "$GITHUB_WORKSPACE/install/bin/mfr3duo_sim" | grep -E 'RPATH|RUNPATH'
+          readelf -d "$GITHUB_WORKSPACE/install/bin/mfr3duo_teleop" | grep -E 'RPATH|RUNPATH'
           readelf -d "$GITHUB_WORKSPACE/install/lib/libmfr3duo_mujoco.so.0" | grep -E 'RPATH|RUNPATH'
 
       - name: Build installed-package consumer
