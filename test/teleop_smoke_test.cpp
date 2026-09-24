@@ -65,6 +65,7 @@ int main() {
         check(teleop.stop_motion(), "resynchronize after reset") &&
         check(simulation.read_state(initial), "read initial state") &&
         check(teleop.handle_key('R', now, exit_requested), "select right arm") &&
+        check(teleop.handle_key('M', now, exit_requested), "switch right arm to joint mode") &&
         check(teleop.handle_key('1', now, exit_requested), "select right joint 1") &&
         check(teleop.handle_key('=', now, exit_requested), "right joint positive input");
 
