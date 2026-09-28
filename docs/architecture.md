@@ -30,29 +30,21 @@ The public API is organized by meaning rather than by transport or middleware:
     config.hpp
         runtime options and scene discovery
 
-    command.hpp
-        ArmCommand
-        SpineCommand
-        GripperCommand
-        BaseCommand
+    data/math.hpp and data/joint.hpp
+        shared value types and active-joint command/state
 
-    state.hpp
-        RobotState
-        ArmState
-        SpineState
-        GripperState
-        BaseState
-        ImuState
+    data/arm.hpp, data/spine.hpp, data/gripper.hpp, data/base.hpp
+        motion device command/state
 
-    camera.hpp
-        Camera
-        CameraFrame
+    data/robot.hpp
+        RobotCommand and RobotState: whole-robot motion only
 
-    lidar.hpp
-        Lidar
-        LaserScan
+    data/imu.hpp, data/camera.hpp, data/lidar.hpp
+        independent sensor data
 
-Camera and LiDAR payloads are deliberately excluded from RobotState. A high-rate control loop can therefore read RobotState without copying image or scan buffers.
+RobotState contains no sensor fields. A high-rate control loop can therefore
+read it without copying IMU, image or scan payloads. Disabling any sensor does
+not affect whole-robot motion state reads.
 
 romujoco component IDs, actuator names and SimulationConfig are private implementation details under src/.
 
@@ -108,6 +100,13 @@ The robot-level API exposes explicit MFR3Duo semantics:
 
 Arm commands are submitted to romujoco as one seven-joint batch. This preserves a coherent arm command update instead of requiring application code to issue seven unrelated component-ID writes.
 
+
+RobotCommand is a complete motion command: every device member is submitted,
+including default-initialized members. Simulation converts it into one
+romujoco::RobotCommand and calls the bottom-layer write_command() once, so
+the 15 active joints, two grippers and base publish as one command-buffer
+snapshot. Device-level writes remain incremental.
+
 The API supports Position, Velocity, Effort and Hybrid joint modes. Position and velocity controller gains remain robot integration parameters. Hybrid stiffness and damping are supplied with each JointCommand because romujoco defines them as command data.
 
 ## State mapping
@@ -119,6 +118,11 @@ RobotState is one coherent low-bandwidth snapshot containing:
 - both seven-axis arms;
 - both grippers;
 - mobile-base ground-truth pose and twist.
+
+
+All motion members are extracted from one bottom-layer RobotState snapshot.
+Device-level reads performed while the simulation runs continuously may observe
+different steps; comparisons should use stopped, fixed-step execution.
 
 The base quaternion is normalized at the public boundary to x/y/z/w field semantics even though MuJoCo free-joint storage is w/x/y/z.
 

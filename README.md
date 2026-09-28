@@ -10,12 +10,18 @@ The public surface is intentionally small:
 
 - simulation.hpp: lifecycle, stepping and overloaded command/state access.
 - config.hpp: runtime options and canonical scene resolution.
-- command.hpp: arm, spine, gripper and mobile-base commands.
-- state.hpp: robot, arm, spine, gripper, base and IMU states.
-- camera.hpp: camera selection and frame data.
-- lidar.hpp: LiDAR selection and scan data.
+- data/math.hpp and data/joint.hpp: shared value types and active-joint commands/states.
+- data/arm.hpp, data/spine.hpp, data/gripper.hpp and data/base.hpp: motion device commands/states.
+- data/robot.hpp: complete whole-robot motion command and coherent motion state.
+- data/imu.hpp, data/camera.hpp and data/lidar.hpp: independent sensor data.
 
 Component IDs and romujoco assembly types are implementation details.
+
+RobotState and RobotCommand contain motion devices only. A RobotCommand write
+publishes all 15 active joints, both grippers and the base in one bottom-layer
+command-buffer update. Device-level writes remain available for partial updates.
+IMU, camera and LiDAR data are read through their own read_state() overloads.
+
 
 A direct control program can use the library like this:
 
@@ -154,7 +160,7 @@ Run:
 
     ctest --test-dir build --output-on-failure
 
-The configuration test checks the complete 40-component assembly. When `mfr3duo_description` is available at configure time, runtime tests also load the real scene, validate Pinocchio limits/Jacobians, exercise Cartesian teleop, and verify robot, IMU and LiDAR state access.
+Public headers are compiled independently, and the data contract test checks enum values and defaults. The configuration test checks the complete 40-component assembly. When `mfr3duo_description` is available at configure time, runtime tests load the real scene, verify coherent motion snapshots and atomic whole-robot command submission, validate Pinocchio limits/Jacobians, exercise Cartesian teleop, and verify separate IMU and LiDAR state access.
 
 GitHub Actions installs Pinocchio through `scripts/pinocchio.sh` into the
 project-private prefix, then runs the full Ubuntu 22.04 build, CTest suite,

@@ -119,6 +119,37 @@ if(MFR3DUO_MUJOCO_BUILD_TELEOP)
 endif()
 
 if(BUILD_TESTING)
+  set(mfr3duo_public_headers
+    config
+    simulation
+    data/math
+    data/joint
+    data/arm
+    data/spine
+    data/gripper
+    data/base
+    data/imu
+    data/camera
+    data/lidar
+    data/robot)
+  set(mfr3duo_header_check_sources)
+  foreach(header IN LISTS mfr3duo_public_headers)
+    string(REPLACE "/" "_" header_name "${header}")
+    set(source "${CMAKE_CURRENT_BINARY_DIR}/header_check_${header_name}.cpp")
+    file(WRITE "${source}"
+      "#include <mfr3duo_mujoco/${header}.hpp>\nint header_check_${header_name}() { return 0; }\n")
+    list(APPEND mfr3duo_header_check_sources "${source}")
+  endforeach()
+  add_library(${PROJECT_NAME}_header_check OBJECT ${mfr3duo_header_check_sources})
+  target_link_libraries(${PROJECT_NAME}_header_check PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
+
+  add_executable(${PROJECT_NAME}_data_contract_test test/data_contract_test.cpp)
+  target_link_libraries(
+    ${PROJECT_NAME}_data_contract_test PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
+  add_test(
+    NAME ${PROJECT_NAME}.data_contract
+    COMMAND ${PROJECT_NAME}_data_contract_test)
+
   add_executable(${PROJECT_NAME}_config_test test/config_test.cpp)
   target_compile_features(${PROJECT_NAME}_config_test PRIVATE cxx_std_17)
   target_include_directories(
@@ -131,6 +162,16 @@ if(BUILD_TESTING)
   add_test(NAME ${PROJECT_NAME}.config COMMAND ${PROJECT_NAME}_config_test)
 
   if(MFR3DUO_DESCRIPTION_SHARE_DIR)
+    add_executable(${PROJECT_NAME}_motion_data_test test/motion_data_test.cpp)
+    target_compile_definitions(
+      ${PROJECT_NAME}_motion_data_test
+      PRIVATE MFR3DUO_TEST_SCENE_PATH="${MFR3DUO_DESCRIPTION_SHARE_DIR}/mjcf/scene.xml")
+    target_link_libraries(
+      ${PROJECT_NAME}_motion_data_test PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
+    add_test(
+      NAME ${PROJECT_NAME}.motion_data
+      COMMAND ${PROJECT_NAME}_motion_data_test)
+
     add_executable(${PROJECT_NAME}_simulation_smoke_test test/simulation_smoke_test.cpp)
     target_compile_features(${PROJECT_NAME}_simulation_smoke_test PRIVATE cxx_std_17)
     target_link_libraries(

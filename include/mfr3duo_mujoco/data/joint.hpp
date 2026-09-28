@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -34,33 +33,14 @@ struct JointCommand {
 };
 
 /**
- * @brief Command for one seven-axis FR3 arm.
+ * @brief State of one active joint.
  */
-struct ArmCommand {
-    std::array<JointCommand, kArmJointCount> joints{};
-};
-
-/**
- * @brief Command for the vertical spine joint.
- */
-using SpineCommand = JointCommand;
-
-/**
- * @brief Command for one Franka Hand.
- */
-struct GripperCommand {
-    double width{0.0};
+struct JointState {
+    double timestamp{0.0};
+    JointControlMode mode{JointControlMode::Position};
+    double position{0.0};
     double velocity{0.0};
     double effort{0.0};
-};
-
-/**
- * @brief Planar velocity command for the TMR mobile base.
- */
-struct BaseCommand {
-    double linear_x{0.0};
-    double linear_y{0.0};
-    double angular_z{0.0};
 };
 
 }  // namespace mfr3duo_mujoco

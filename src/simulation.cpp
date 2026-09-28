@@ -1,5 +1,8 @@
 #include "mfr3duo_mujoco/simulation.hpp"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <utility>
 
@@ -66,6 +69,25 @@ romujoco::JointCommand make_joint_command(
     result.effort = command.effort;
     result.stiffness = command.stiffness;
     result.damping = command.damping;
+    return result;
+}
+
+romujoco::GripperCommand make_gripper_command(
+    romujoco::GripperId id, const GripperCommand& command) {
+    romujoco::GripperCommand result;
+    result.id = id;
+    result.width = command.width;
+    result.velocity = command.velocity;
+    result.effort = command.effort;
+    return result;
+}
+
+romujoco::MobileBaseCommand make_base_command(const BaseCommand& command) {
+    romujoco::MobileBaseCommand result;
+    result.id = detail::component_ids::mobile_base::kTmr;
+    result.velocity.linear_x = command.linear_x;
+    result.velocity.linear_y = command.linear_y;
+    result.velocity.angular_z = command.angular_z;
     return result;
 }
 
@@ -275,12 +297,8 @@ bool Simulation::write_command(Arm arm, const ArmCommand& command) {
 bool Simulation::write_command(
     Gripper gripper, const GripperCommand& command) {
     if (!valid_gripper(gripper)) return false;
-    romujoco::GripperCommand result;
-    result.id = gripper_id(gripper);
-    result.width = command.width;
-    result.velocity = command.velocity;
-    result.effort = command.effort;
-    return impl_->simulation.write_command(result);
+    return impl_->simulation.write_command(
+        make_gripper_command(gripper_id(gripper), command));
 }
 
 bool Simulation::write_command(const SpineCommand& command) {
@@ -289,11 +307,29 @@ bool Simulation::write_command(const SpineCommand& command) {
 }
 
 bool Simulation::write_command(const BaseCommand& command) {
-    romujoco::MobileBaseCommand result;
-    result.id = detail::component_ids::mobile_base::kTmr;
-    result.velocity.linear_x = command.linear_x;
-    result.velocity.linear_y = command.linear_y;
-    result.velocity.angular_z = command.angular_z;
+    return impl_->simulation.write_command(make_base_command(command));
+}
+
+bool Simulation::write_command(const RobotCommand& command) {
+    romujoco::RobotCommand result;
+    result.joints.reserve(1 + 2 * kArmJointCount);
+    result.joints.emplace_back(
+        make_joint_command(detail::component_ids::joint::kSpine, command.spine));
+    for (std::size_t index = 0; index < kArmJointCount; ++index) {
+        result.joints.emplace_back(make_joint_command(
+            detail::component_ids::joint::kLeftArm[index],
+            command.left_arm.joints[index]));
+        result.joints.emplace_back(make_joint_command(
+            detail::component_ids::joint::kRightArm[index],
+            command.right_arm.joints[index]));
+    }
+
+    result.grippers.reserve(2);
+    result.grippers.emplace_back(make_gripper_command(
+        detail::component_ids::gripper::kLeft, command.left_gripper));
+    result.grippers.emplace_back(make_gripper_command(
+        detail::component_ids::gripper::kRight, command.right_gripper));
+    result.mobile_bases.emplace_back(make_base_command(command.base));
     return impl_->simulation.write_command(result);
 }
 

@@ -5,11 +5,11 @@
 #include <memory>
 #include <string>
 
-#include "mfr3duo_mujoco/camera.hpp"
-#include "mfr3duo_mujoco/command.hpp"
 #include "mfr3duo_mujoco/config.hpp"
-#include "mfr3duo_mujoco/lidar.hpp"
-#include "mfr3duo_mujoco/state.hpp"
+#include "mfr3duo_mujoco/data/camera.hpp"
+#include "mfr3duo_mujoco/data/imu.hpp"
+#include "mfr3duo_mujoco/data/lidar.hpp"
+#include "mfr3duo_mujoco/data/robot.hpp"
 
 namespace mfr3duo_mujoco {
 
@@ -78,6 +78,9 @@ public:
     bool write_command(Gripper gripper, const GripperCommand& command);
     bool write_command(const SpineCommand& command);
     bool write_command(const BaseCommand& command);
+
+    /** @brief Atomically submit a complete whole-robot motion command. */
+    bool write_command(const RobotCommand& command);
 
     bool read_state(RobotState& state) const;
     bool read_state(Arm arm, ArmState& state) const;

@@ -27,6 +27,7 @@ enum class Camera : std::uint8_t {
     HeadZedRight,
 };
 
+/** @brief Image payload and transport metadata. */
 struct Image {
     std::uint64_t timestamp{0};
     std::string frame_id;
@@ -38,6 +39,7 @@ struct Image {
     std::vector<std::uint8_t> data;
 };
 
+/** @brief Camera calibration and binning metadata. */
 struct CameraInfo {
     std::uint32_t height{0};
     std::uint32_t width{0};
