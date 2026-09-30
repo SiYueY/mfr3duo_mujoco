@@ -16,21 +16,23 @@ inline constexpr romujoco::JointId kSpine = 0;
 inline constexpr std::array<romujoco::JointId, 7> kLeftArm{1, 2, 3, 4, 5, 6, 7};
 inline constexpr std::array<romujoco::JointId, 7> kRightArm{8, 9, 10, 11, 12, 13, 14};
 
-inline constexpr romujoco::JointId kCasterFrontLeftSteering = 15;
-inline constexpr romujoco::JointId kCasterFrontLeftWheel = 16;
-inline constexpr romujoco::JointId kRockerArm = 17;
-inline constexpr romujoco::JointId kCasterRearRightSteering = 18;
-inline constexpr romujoco::JointId kCasterRearRightWheel = 19;
+namespace tmr {
+inline constexpr romujoco::JointId kFrontSteering = 15;
+inline constexpr romujoco::JointId kFrontDrive = 16;
+inline constexpr romujoco::JointId kRearSteering = 17;
+inline constexpr romujoco::JointId kRearDrive = 18;
+inline constexpr romujoco::JointId kFrontCasterSteering = 19;
+inline constexpr romujoco::JointId kFrontCasterWheel = 20;
+inline constexpr romujoco::JointId kRockerArm = 21;
+inline constexpr romujoco::JointId kRearCasterSteering = 22;
+inline constexpr romujoco::JointId kRearCasterWheel = 23;
+}  // namespace tmr
 }  // namespace joint
 
 namespace gripper {
 inline constexpr romujoco::GripperId kLeft = 0;
 inline constexpr romujoco::GripperId kRight = 1;
 }  // namespace gripper
-
-namespace mobile_base {
-inline constexpr romujoco::ComponentId kTmr = 0;
-}  // namespace mobile_base
 
 namespace imu {
 inline constexpr romujoco::ImuId kBase = 0;

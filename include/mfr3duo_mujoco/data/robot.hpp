@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "mfr3duo_mujoco/data/arm.hpp"
-#include "mfr3duo_mujoco/data/base.hpp"
+#include "mfr3duo_mujoco/data/tmr.hpp"
 #include "mfr3duo_mujoco/data/gripper.hpp"
 #include "mfr3duo_mujoco/data/spine.hpp"
 
@@ -20,7 +20,7 @@ struct RobotState {
     double simulation_time{0.0};
     std::uint64_t step{0};
 
-    BaseState base;
+    TmrState tmr;
     SpineState spine;
     ArmState left_arm;
     ArmState right_arm;
@@ -35,7 +35,7 @@ struct RobotState {
  * Use device-level write_command overloads for partial updates.
  */
 struct RobotCommand {
-    BaseCommand base;
+    TmrCommand tmr;
     SpineCommand spine;
     ArmCommand left_arm;
     ArmCommand right_arm;

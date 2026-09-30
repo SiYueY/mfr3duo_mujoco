@@ -127,7 +127,7 @@ if(BUILD_TESTING)
     data/arm
     data/spine
     data/gripper
-    data/base
+    data/tmr
     data/imu
     data/camera
     data/lidar

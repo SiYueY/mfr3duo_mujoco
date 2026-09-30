@@ -15,6 +15,27 @@ constexpr double kSpineMax = 0.85;
 constexpr double kGripperMin = 0.0;
 constexpr double kGripperMax = 0.08;
 constexpr double kMaxUpdatePeriod = 0.05;
+constexpr double kPi = 3.14159265358979323846;
+constexpr double kTmrWheelRadius = 0.05;
+
+void set_module_target(
+    double vx, double vy, double wz, double module_x, double module_y,
+    double current_steering, double& steering, double& drive) {
+    const double x = vx - wz * module_y;
+    const double y = vy + wz * module_x;
+    const double speed = std::hypot(x, y);
+    if (speed < 1e-12) {
+        steering = current_steering;
+        drive = 0.0;
+        return;
+    }
+    steering = std::atan2(y, x);
+    drive = speed / kTmrWheelRadius;
+    if (std::abs(std::remainder(steering - current_steering, 2.0 * kPi)) > kPi / 2.0) {
+        steering = std::remainder(steering + kPi, 2.0 * kPi);
+        drive = -drive;
+    }
+}
 
 double clamp_joint_target(
     double value, double lower, double upper, double margin) {
@@ -187,7 +208,7 @@ bool Teleop::update(std::chrono::steady_clock::time_point now) {
 
     switch (target_) {
         case Target::Base:
-            return update_base(active_key_);
+            return update_base(active_key_, state.tmr);
         case Target::LeftArm:
             return update_arm(
                 Arm::Left,
@@ -221,8 +242,12 @@ bool Teleop::stop_motion() {
 
     active_key_ = 0;
 
-    BaseCommand base;
-    return simulation_->write_command(base) &&
+    TmrState tmr;
+    if (!simulation_->read_state(tmr)) return false;
+    TmrCommand stop;
+    stop.front_steering_position = tmr.front_steering.position;
+    stop.rear_steering_position = tmr.rear_steering.position;
+    return simulation_->write_command(stop) &&
            write_arm(Arm::Left, left_arm_target_) &&
            write_arm(Arm::Right, right_arm_target_) &&
            write_spine() &&
@@ -249,30 +274,39 @@ bool Teleop::synchronize() {
     return true;
 }
 
-bool Teleop::update_base(char key) {
-    BaseCommand command;
+bool Teleop::update_base(char key, const TmrState& state) {
+    double vx = 0.0;
+    double vy = 0.0;
+    double wz = 0.0;
     switch (key) {
         case 'w':
-            command.linear_x = options_.base_linear_velocity;
+            vx = options_.base_linear_velocity;
             break;
         case 's':
-            command.linear_x = -options_.base_linear_velocity;
+            vx = -options_.base_linear_velocity;
             break;
         case 'a':
-            command.linear_y = options_.base_linear_velocity;
+            vy = options_.base_linear_velocity;
             break;
         case 'd':
-            command.linear_y = -options_.base_linear_velocity;
+            vy = -options_.base_linear_velocity;
             break;
         case 'q':
-            command.angular_z = options_.base_angular_velocity;
+            wz = options_.base_angular_velocity;
             break;
         case 'e':
-            command.angular_z = -options_.base_angular_velocity;
+            wz = -options_.base_angular_velocity;
             break;
         default:
             break;
     }
+    TmrCommand command;
+    set_module_target(
+        vx, vy, wz, 0.3, -0.2, state.front_steering.position,
+        command.front_steering_position, command.front_drive_velocity);
+    set_module_target(
+        vx, vy, wz, -0.3, 0.2, state.rear_steering.position,
+        command.rear_steering_position, command.rear_drive_velocity);
     return simulation_->write_command(command);
 }
 

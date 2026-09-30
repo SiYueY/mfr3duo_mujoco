@@ -60,7 +60,6 @@ romujoco::JointInfo make_active_joint(
     info.actuation = romujoco::JointActuation::Active;
     info.actuator_name = std::move(actuator_name);
     info.default_mode = romujoco::JointMode::Position;
-    info.allowed_modes.set(romujoco::JointMode::Hybrid);
     info.allowed_modes.set(romujoco::JointMode::Position);
     info.allowed_modes.set(romujoco::JointMode::Velocity);
     info.allowed_modes.set(romujoco::JointMode::Effort);
@@ -140,19 +139,22 @@ romujoco::GripperInfo make_gripper(
     return info;
 }
 
-romujoco::SwerveMobileBaseInfo make_mobile_base() {
-    romujoco::SwerveMobileBaseInfo info;
-    info.common.id = detail::component_ids::mobile_base::kTmr;
-    info.common.name = "tmr";
-    info.common.base_body_name = "base_link";
-    info.common.execution_mode = romujoco::MobileBaseExecutionMode::Dynamic;
-    info.common.period = kPhysicsPeriod;
-    info.modules = {
-        {"front", 0.3, -0.2, 0.05, "tmrv0_2_joint_0", "tmrv0_2_joint_0_position",
-         "tmrv0_2_joint_1", "tmrv0_2_joint_1_velocity"},
-        {"rear", -0.3, 0.2, 0.05, "tmrv0_2_joint_2", "tmrv0_2_joint_2_position",
-         "tmrv0_2_joint_3", "tmrv0_2_joint_3_velocity"},
-    };
+romujoco::JointInfo make_tmr_joint(
+    romujoco::JointId id, int index, romujoco::JointMode mode) {
+    const std::string name = "tmrv0_2_joint_" + std::to_string(index);
+    romujoco::JointInfo info;
+    info.id = id;
+    info.joint_name = name;
+    info.actuator_name = name + "_motor";
+    info.default_mode = mode;
+    info.allowed_modes.set(mode);
+    info.position.stiffness = 30.0;
+    info.position.damping = 5.0;
+    info.velocity.damping = 2.0;
+    info.position_limits = {-kPi, kPi};
+    info.velocity_limits = {-20.0, 20.0};
+    info.effort_limits = {-500.0, 500.0};
+    info.period = kPhysicsPeriod;
     return info;
 }
 
@@ -186,6 +188,7 @@ romujoco::LidarInfo make_lidar(
     info.range_max = 40.0;
     info.geom_group_mask = (1U << 1U) | (1U << 3U);
     info.exclude_parent_body = true;
+    info.async_update = true;
     return info;
 }
 
@@ -312,24 +315,32 @@ romujoco::SimulationConfig make_simulation_config(
     add_fr3_arm(config.components, "left_", component_ids::joint::kLeftArm.front());
     add_fr3_arm(config.components, "right_", component_ids::joint::kRightArm.front());
 
+    config.components.emplace_back(make_tmr_joint(
+        component_ids::joint::tmr::kFrontSteering, 0, romujoco::JointMode::Position));
+    config.components.emplace_back(make_tmr_joint(
+        component_ids::joint::tmr::kFrontDrive, 1, romujoco::JointMode::Velocity));
+    config.components.emplace_back(make_tmr_joint(
+        component_ids::joint::tmr::kRearSteering, 2, romujoco::JointMode::Position));
+    config.components.emplace_back(make_tmr_joint(
+        component_ids::joint::tmr::kRearDrive, 3, romujoco::JointMode::Velocity));
+
     config.components.emplace_back(make_passive_joint(
-        component_ids::joint::kCasterFrontLeftSteering,
+        component_ids::joint::tmr::kFrontCasterSteering,
         "caster_front_left_steering_joint"));
     config.components.emplace_back(make_passive_joint(
-        component_ids::joint::kCasterFrontLeftWheel, "caster_front_left_joint"));
+        component_ids::joint::tmr::kFrontCasterWheel, "caster_front_left_joint"));
     config.components.emplace_back(make_passive_joint(
-        component_ids::joint::kRockerArm, "rocker_arm_joint"));
+        component_ids::joint::tmr::kRockerArm, "rocker_arm_joint"));
     config.components.emplace_back(make_passive_joint(
-        component_ids::joint::kCasterRearRightSteering,
+        component_ids::joint::tmr::kRearCasterSteering,
         "caster_rear_right_steering_joint"));
     config.components.emplace_back(make_passive_joint(
-        component_ids::joint::kCasterRearRightWheel, "caster_rear_right_joint"));
+        component_ids::joint::tmr::kRearCasterWheel, "caster_rear_right_joint"));
 
     config.components.emplace_back(
         make_gripper(component_ids::gripper::kLeft, "left_gripper", "left_"));
     config.components.emplace_back(
         make_gripper(component_ids::gripper::kRight, "right_gripper", "right_"));
-    config.components.emplace_back(make_mobile_base());
 
     if (options.imu_enabled) config.components.emplace_back(make_imu());
     if (options.lidars_enabled) {

@@ -13,10 +13,9 @@ struct HasImu : std::false_type {};
 template <typename T>
 struct HasImu<T, std::void_t<decltype(std::declval<T>().imu)>> : std::true_type {};
 
-static_assert(static_cast<std::uint8_t>(mfr3duo_mujoco::JointControlMode::Hybrid) == 0);
-static_assert(static_cast<std::uint8_t>(mfr3duo_mujoco::JointControlMode::Position) == 1);
-static_assert(static_cast<std::uint8_t>(mfr3duo_mujoco::JointControlMode::Velocity) == 2);
-static_assert(static_cast<std::uint8_t>(mfr3duo_mujoco::JointControlMode::Effort) == 3);
+static_assert(static_cast<std::uint8_t>(mfr3duo_mujoco::JointControlMode::Position) == 0);
+static_assert(static_cast<std::uint8_t>(mfr3duo_mujoco::JointControlMode::Velocity) == 1);
+static_assert(static_cast<std::uint8_t>(mfr3duo_mujoco::JointControlMode::Effort) == 2);
 static_assert(std::is_same_v<
               std::underlying_type_t<mfr3duo_mujoco::JointControlMode>, std::uint8_t>);
 static_assert(!HasImu<mfr3duo_mujoco::RobotState>::value);
@@ -43,8 +42,8 @@ int main() {
                          "robot command default mode") &&
                    check(robot_state.right_arm.joints[0].mode == JointControlMode::Position,
                          "robot state default mode") &&
-                   check(robot_state.base.pose.orientation.w == 1.0,
-                         "base orientation default")
+                   check(robot_state.tmr.front_steering.mode == JointControlMode::Position,
+                         "tmr steering default mode")
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }

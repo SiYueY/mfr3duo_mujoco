@@ -1,12 +1,22 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <type_traits>
+#include <utility>
 
 #include "mfr3duo_mujoco/simulation.hpp"
 
 namespace {
 
 using namespace mfr3duo_mujoco;
+
+template <typename T, typename = void>
+struct HasPassive : std::false_type {};
+template <typename T>
+struct HasPassive<T, std::void_t<decltype(std::declval<T>().passive)>>
+    : std::true_type {};
+static_assert(!HasPassive<TmrState>::value);
+static_assert(!HasPassive<RobotState>::value);
 
 bool check(bool condition, const char* message) {
     if (!condition) std::cerr << message << '\n';
@@ -32,21 +42,12 @@ bool same_gripper(const GripperState& lhs, const GripperState& rhs) {
            lhs.stalled == rhs.stalled;
 }
 
-bool same_base(const BaseState& lhs, const BaseState& rhs) {
+bool same_tmr(const TmrState& lhs, const TmrState& rhs) {
     return lhs.timestamp == rhs.timestamp &&
-           lhs.pose.position.x == rhs.pose.position.x &&
-           lhs.pose.position.y == rhs.pose.position.y &&
-           lhs.pose.position.z == rhs.pose.position.z &&
-           lhs.pose.orientation.x == rhs.pose.orientation.x &&
-           lhs.pose.orientation.y == rhs.pose.orientation.y &&
-           lhs.pose.orientation.z == rhs.pose.orientation.z &&
-           lhs.pose.orientation.w == rhs.pose.orientation.w &&
-           lhs.twist.linear.x == rhs.twist.linear.x &&
-           lhs.twist.linear.y == rhs.twist.linear.y &&
-           lhs.twist.linear.z == rhs.twist.linear.z &&
-           lhs.twist.angular.x == rhs.twist.angular.x &&
-           lhs.twist.angular.y == rhs.twist.angular.y &&
-           lhs.twist.angular.z == rhs.twist.angular.z;
+           same_joint(lhs.front_steering, rhs.front_steering) &&
+           same_joint(lhs.front_drive, rhs.front_drive) &&
+           same_joint(lhs.rear_steering, rhs.rear_steering) &&
+           same_joint(lhs.rear_drive, rhs.rear_drive);
 }
 
 bool check_snapshot(Simulation& simulation, RobotState& robot) {
@@ -55,16 +56,14 @@ bool check_snapshot(Simulation& simulation, RobotState& robot) {
     SpineState spine;
     GripperState left_gripper;
     GripperState right_gripper;
-    BaseState base;
+    TmrState tmr;
     if (!check(simulation.read_state(robot), "read robot") ||
         !check(simulation.read_state(Arm::Left, left_arm), "read left arm") ||
         !check(simulation.read_state(Arm::Right, right_arm), "read right arm") ||
         !check(simulation.read_state(spine), "read spine") ||
         !check(simulation.read_state(Gripper::Left, left_gripper), "read left gripper") ||
         !check(simulation.read_state(Gripper::Right, right_gripper), "read right gripper") ||
-        !check(simulation.read_state(base), "read base")) {
-        return false;
-    }
+        !check(simulation.read_state(tmr), "read tmr")) return false;
     return check(same_arm(robot.left_arm, left_arm), "left arm snapshot mismatch") &&
            check(same_arm(robot.right_arm, right_arm), "right arm snapshot mismatch") &&
            check(same_joint(robot.spine, spine), "spine snapshot mismatch") &&
@@ -72,7 +71,7 @@ bool check_snapshot(Simulation& simulation, RobotState& robot) {
                  "left gripper snapshot mismatch") &&
            check(same_gripper(robot.right_gripper, right_gripper),
                  "right gripper snapshot mismatch") &&
-           check(same_base(robot.base, base), "base snapshot mismatch");
+           check(same_tmr(robot.tmr, tmr), "tmr snapshot mismatch");
 }
 
 JointCommand hold(const JointState& state) {
@@ -92,18 +91,31 @@ RobotCommand make_motion_command(const RobotState& state) {
         state.left_gripper.width > 0.04 ? 0.02 : 0.06, 0.05, 5.0};
     command.right_gripper = {
         state.right_gripper.width > 0.04 ? 0.02 : 0.06, 0.05, 5.0};
-    command.base.linear_x = 0.2;
+    command.tmr.front_steering_position = state.tmr.front_steering.position + 0.3;
+    command.tmr.rear_steering_position = state.tmr.rear_steering.position - 0.3;
+    command.tmr.front_drive_velocity = 4.0;
+    command.tmr.rear_drive_velocity = 4.0;
     return command;
+}
+
+bool check_passive(Simulation& simulation) {
+    TmrPassiveState state;
+    if (!check(simulation.read_state(state), "read passive TMR")) return false;
+    return check(std::isfinite(state.rocker_arm.position) &&
+                     std::isfinite(state.front_caster_steering.velocity) &&
+                     std::isfinite(state.front_caster_wheel.position) &&
+                     std::isfinite(state.rear_caster_steering.position) &&
+                     std::isfinite(state.rear_caster_wheel.velocity),
+                 "non-finite passive TMR state");
 }
 
 bool run_case(const SimulationOptions& options) {
     Simulation simulation;
-    if (!check(simulation.initialize(MFR3DUO_TEST_SCENE_PATH, options), "initialize")) {
+    if (!check(simulation.initialize(MFR3DUO_TEST_SCENE_PATH, options), "initialize"))
         return false;
-    }
     bool passed = check(simulation.step(), "initial step");
     RobotState initial;
-    if (passed) passed = check_snapshot(simulation, initial);
+    if (passed) passed = check_snapshot(simulation, initial) && check_passive(simulation);
 
     if (passed && !options.imu_enabled) {
         ImuState imu;
@@ -117,17 +129,24 @@ bool run_case(const SimulationOptions& options) {
             command.right_arm.joints[index].mode = JointControlMode::Effort;
         }
         command.left_arm.joints[0].velocity = 0.05;
-        command.spine.mode = JointControlMode::Hybrid;
-        command.spine.stiffness = 100.0;
-        command.spine.damping = 5.0;
-        passed = check(simulation.write_command(command), "whole robot write") &&
-                 check(simulation.step(250), "whole robot step");
+        for (int iteration = 0; iteration < 500 && passed; ++iteration) {
+            passed = check(simulation.write_command(command), "whole robot write") &&
+                     check(simulation.step(), "whole robot step");
+        }
 
         RobotState after_batch;
         if (passed) passed = check_snapshot(simulation, after_batch);
         if (passed) {
-            passed = check(after_batch.spine.mode == JointControlMode::Hybrid,
-                           "spine mode after batch");
+            passed = check(after_batch.spine.mode == JointControlMode::Position,
+                           "spine mode after batch") &&
+                     check(after_batch.tmr.front_steering.mode == JointControlMode::Position,
+                           "front steering mode") &&
+                     check(after_batch.tmr.front_drive.mode == JointControlMode::Velocity,
+                           "front drive mode") &&
+                     check(after_batch.tmr.rear_steering.mode == JointControlMode::Position,
+                           "rear steering mode") &&
+                     check(after_batch.tmr.rear_drive.mode == JointControlMode::Velocity,
+                           "rear drive mode");
             for (std::size_t index = 0; index < kArmJointCount && passed; ++index) {
                 passed =
                     check(after_batch.left_arm.joints[index].mode ==
@@ -138,9 +157,18 @@ bool run_case(const SimulationOptions& options) {
                           "right arm mode after batch");
             }
             passed = passed &&
-                     check(after_batch.base.pose.position.x >
-                               initial.base.pose.position.x + 0.005,
-                           "base did not follow forward command") &&
+                     check(after_batch.tmr.front_steering.position >
+                               initial.tmr.front_steering.position + 0.05,
+                           "front steering did not move positive") &&
+                     check(after_batch.tmr.rear_steering.position <
+                               initial.tmr.rear_steering.position - 0.05,
+                           "rear steering did not move negative") &&
+                     check(after_batch.tmr.front_drive.position >
+                               initial.tmr.front_drive.position + 0.05,
+                           "front drive did not rotate positive") &&
+                     check(after_batch.tmr.rear_drive.position >
+                               initial.tmr.rear_drive.position + 0.05,
+                           "rear drive did not rotate positive") &&
                      check(std::abs(after_batch.left_gripper.width -
                                     command.left_gripper.width) <
                                std::abs(initial.left_gripper.width -
@@ -150,11 +178,7 @@ bool run_case(const SimulationOptions& options) {
                                     command.right_gripper.width) <
                                std::abs(initial.right_gripper.width -
                                         command.right_gripper.width),
-                           "right gripper did not approach width target") &&
-                     check(std::isfinite(after_batch.left_gripper.velocity) &&
-                               std::isfinite(after_batch.right_gripper.effort) &&
-                               std::isfinite(after_batch.base.twist.linear.x),
-                           "device feedback after batch");
+                           "right gripper did not approach width target");
         }
 
         if (passed) {
@@ -174,26 +198,44 @@ bool run_case(const SimulationOptions& options) {
         }
 
         if (passed) {
-            ArmCommand partial = command.left_arm;
-            for (auto& joint : partial.joints) {
-                joint.mode = JointControlMode::Position;
+            TmrCommand stop = command.tmr;
+            stop.front_drive_velocity = 0.0;
+            stop.rear_drive_velocity = 0.0;
+            stop.front_steering_position = after_batch.tmr.front_steering.position;
+            stop.rear_steering_position = after_batch.tmr.rear_steering.position;
+            for (int iteration = 0; iteration < 300 && passed; ++iteration) {
+                passed = check(simulation.write_command(stop), "device-level TMR write") &&
+                         check(simulation.step(), "device-level TMR step");
             }
-            passed = check(simulation.write_command(Arm::Left, partial),
-                           "device-level arm write") &&
-                     check(simulation.step(), "device-level step");
-            RobotState after_partial;
-            if (passed) passed = check_snapshot(simulation, after_partial);
+            RobotState after_stop;
+            if (passed) passed = check_snapshot(simulation, after_stop);
             if (passed) {
-                passed = check(after_partial.left_arm.joints[0].mode ==
-                                   JointControlMode::Position,
-                               "left arm partial update missing") &&
-                         check(after_partial.right_arm.joints[0].mode ==
-                                   JointControlMode::Effort,
-                               "left arm partial update changed right arm");
+                passed = check(std::abs(after_stop.tmr.front_drive.velocity) < 0.5 &&
+                                   std::abs(after_stop.tmr.rear_drive.velocity) < 0.5,
+                               "TMR drives did not stop") &&
+                         check(std::abs(after_stop.tmr.front_steering.position -
+                                        stop.front_steering_position) < 0.1,
+                               "TMR steering did not hold");
+            }
+            if (passed) {
+                stop.front_drive_velocity = -4.0;
+                stop.rear_drive_velocity = -4.0;
+                for (int iteration = 0; iteration < 300 && passed; ++iteration) {
+                    passed = check(simulation.write_command(stop), "reverse TMR write") &&
+                             check(simulation.step(), "reverse TMR step");
+                }
+                TmrState reverse;
+                if (passed) passed = check(simulation.read_state(reverse), "reverse TMR read");
+                if (passed) {
+                    passed = check(reverse.front_drive.position <
+                                       after_stop.tmr.front_drive.position - 0.05 &&
+                                       reverse.rear_drive.position <
+                                       after_stop.tmr.rear_drive.position - 0.05,
+                                   "TMR drives did not reverse");
+                }
             }
         }
     }
-
     return check(simulation.shutdown(), "shutdown") && passed;
 }
 

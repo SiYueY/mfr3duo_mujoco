@@ -64,7 +64,7 @@ private:
         Cartesian,
     };
 
-    bool update_base(char key);
+    bool update_base(char key, const TmrState& state);
     bool update_arm(
         Arm arm,
         char key,

@@ -77,7 +77,7 @@ public:
     bool write_command(Arm arm, const ArmCommand& command);
     bool write_command(Gripper gripper, const GripperCommand& command);
     bool write_command(const SpineCommand& command);
-    bool write_command(const BaseCommand& command);
+    bool write_command(const TmrCommand& command);
 
     /** @brief Atomically submit a complete whole-robot motion command. */
     bool write_command(const RobotCommand& command);
@@ -86,7 +86,8 @@ public:
     bool read_state(Arm arm, ArmState& state) const;
     bool read_state(Gripper gripper, GripperState& state) const;
     bool read_state(SpineState& state) const;
-    bool read_state(BaseState& state) const;
+    bool read_state(TmrState& state) const;
+    bool read_state(TmrPassiveState& state) const;
     bool read_state(ImuState& state) const;
     bool read_state(Camera camera, CameraFrame& frame) const;
     bool read_state(Lidar lidar, LaserScan& scan) const;

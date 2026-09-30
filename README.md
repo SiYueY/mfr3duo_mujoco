@@ -11,14 +11,14 @@ The public surface is intentionally small:
 - simulation.hpp: lifecycle, stepping and overloaded command/state access.
 - config.hpp: runtime options and canonical scene resolution.
 - data/math.hpp and data/joint.hpp: shared value types and active-joint commands/states.
-- data/arm.hpp, data/spine.hpp, data/gripper.hpp and data/base.hpp: motion device commands/states.
+- data/arm.hpp, data/spine.hpp, data/gripper.hpp and data/tmr.hpp: motion device commands/states.
 - data/robot.hpp: complete whole-robot motion command and coherent motion state.
 - data/imu.hpp, data/camera.hpp and data/lidar.hpp: independent sensor data.
 
 Component IDs and romujoco assembly types are implementation details.
 
 RobotState and RobotCommand contain motion devices only. A RobotCommand write
-publishes all 15 active joints, both grippers and the base in one bottom-layer
+publishes all 19 active joints and both grippers in one bottom-layer
 command-buffer update. Device-level writes remain available for partial updates.
 IMU, camera and LiDAR data are read through their own read_state() overloads.
 
@@ -35,9 +35,10 @@ A direct control program can use the library like this:
         return 1;
     }
 
-    mfr3duo_mujoco::BaseCommand base;
-    base.linear_x = 0.2;
-    simulation.write_command(base);
+    mfr3duo_mujoco::TmrCommand tmr;
+    tmr.front_drive_velocity = 1.0;
+    tmr.rear_drive_velocity = 1.0;
+    simulation.write_command(tmr);
 
     simulation.step(1000);
 
@@ -65,7 +66,7 @@ simulation is stopped; it is rejected while continuous execution is running or p
 
 - Linux
 - C++17
-- an installed romujoco CMake package
+- an installed romujoco CMake package built from a source revision that provides `LidarInfo::async_update`
 - mfr3duo_description model files at runtime
 - project-private Pinocchio 4.1.0 with URDF parser support for the optional teleoperation executable
 

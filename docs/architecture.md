@@ -1,160 +1,38 @@
 # mfr3duo_mujoco Architecture
 
-## Scope and dependency direction
+## Scope
 
-mfr3duo_mujoco is the robot-specific simulation layer between the authoritative MFR3Duo model and application code:
+`mfr3duo_mujoco` is the standalone C++17/CMake simulation library for Mobile FR3 Duo. It combines the authoritative model from `mfr3duo_description` with the generic `romujoco` runtime. The core has no ROS 2 or Pinocchio dependency. Component IDs, MJCF actuator names and `romujoco::SimulationConfig` remain private implementation details.
 
-    User C++ application
-            |
-            v
-    mfr3duo_mujoco::Simulation
-            |
-            | MFR3Duo robot semantics
-            v
-    romujoco::Simulation
-            |
-            v
-          MuJoCo
+## Public API
 
-mfr3duo_description remains the source of truth for MJCF, meshes, dynamics, sensors and keyframes. romujoco remains the generic MuJoCo runtime. mfr3duo_mujoco owns the MFR3Duo assembly and maps robot-level commands and states to generic romujoco components.
+- `simulation.hpp` provides lifecycle, fixed stepping, continuous execution, and typed command/state access.
+- `data/joint.hpp` defines the Position, Velocity and Effort modes. `JointState::mode` reports the current mode.
+- `data/arm.hpp`, `data/spine.hpp`, `data/gripper.hpp` and `data/tmr.hpp` define motion device data.
+- `data/robot.hpp` defines a complete `RobotCommand` and coherent `RobotState` for the spine, both FR3 arms, both grippers and the four active TMR joints.
+- `TmrPassiveState` exposes five unactuated TMR joints through a separate read API.
+- `data/imu.hpp`, `data/camera.hpp` and `data/lidar.hpp` remain independent sensor channels.
 
-The core is a standalone C++17/CMake library. It does not depend on ROS 2, ament, DDS or ros2_control. Those systems may be added later only as adapters above the public C++ API.
+A complete `RobotCommand` converts into one `romujoco::RobotCommand` and is submitted once. Device-level writes are partial updates. All `RobotState` motion members are extracted from one bottom-layer snapshot. Sensor samples and passive TMR state are excluded from that snapshot. To compare device-level reads with a robot snapshot, stop the simulation and use fixed-step execution.
 
-## Public API boundary
+## TMR assembly
 
-The public API is organized by meaning rather than by transport or middleware:
+The four TMR joints are registered as active `romujoco::Joint` components. Front/rear steering accept Position commands; front/rear drive accept Velocity commands. The MFR3Duo MJCF uses motor actuators because `JointComponent` computes actuator effort for both target modes. The five unactuated caster and rocker joints are passive components. The generic `romujoco::MobileBase` capability remains available to other robots; this robot no longer registers one.
 
-    simulation.hpp
-        lifecycle, stepping and overloaded command/state access
+The public API exposes no planar base twist command or ground-truth base pose. Swerve inverse/forward kinematics and odometry belong above this library. The standalone keyboard teleop converts its operator twist intent to steering and drive targets; the core library does not perform this conversion.
 
-    config.hpp
-        runtime options and scene discovery
+## Execution
 
-    data/math.hpp and data/joint.hpp
-        shared value types and active-joint command/state
-
-    data/arm.hpp, data/spine.hpp, data/gripper.hpp, data/base.hpp
-        motion device command/state
-
-    data/robot.hpp
-        RobotCommand and RobotState: whole-robot motion only
-
-    data/imu.hpp, data/camera.hpp, data/lidar.hpp
-        independent sensor data
-
-RobotState contains no sensor fields. A high-rate control loop can therefore
-read it without copying IMU, image or scan payloads. Disabling any sensor does
-not affect whole-robot motion state reads.
-
-romujoco component IDs, actuator names and SimulationConfig are private implementation details under src/.
-
-## Simulation execution
-
-The public API deliberately exposes no execution-mode enum. The caller selects the
-execution style by which operation it invokes:
-
-- `step(count)` explicitly advances a stopped simulation by a fixed number of
-  physics steps. This is intended for controllers, agents, tests and deterministic
-  experiments that own simulation-time progression.
-- `start()` starts continuous execution using the internal scheduler. The caller
-  can continue reading state and writing commands while the simulation advances.
-
-The two styles are mutually exclusive. `step()` is accepted only while the
-simulation status is `Stopped`; it is rejected while `Running`, `Paused`,
-`Stopping`, `Error` or `Uninitialized`. Pausing continuous execution does not
-transfer ownership of time advancement to the caller.
+`step(count)` advances a stopped simulation by a fixed number of physics steps. `start()` uses the internal scheduler for continuous execution. These operations are mutually exclusive. `step()` is rejected while continuous execution is running or paused. Optional IMU, Camera and LiDAR flags affect only their independent read channels, not the motion snapshot.
 
 ## Tools
 
-Repository executables live under `tools/`:
+`mfr3duo_sim` runs the canonical scene. `mfr3duo_teleop` owns a `Simulation` and uses project-private Pinocchio for arm limits, Jacobians and Cartesian jogging. Pinocchio is not linked by the core library.
 
-- `tools/simulator` provides the normal `mfr3duo_sim` executable.
-- `tools/teleop` provides `mfr3duo_teleop`, which owns its own `Simulation`
-  instance and controls it directly through the public robot-level API.
+The teleop program resolves arm joint limits and Jacobians from the authoritative URDF. Joint jogging integrates a bounded velocity into position targets; Cartesian jogging uses damped least squares and applies both velocity and position limits before writing arm commands. The keyboard's planar base intent is converted to TMR steering and wheel targets inside teleop.
 
-The teleop tool depends on Pinocchio, but the `mfr3duo_mujoco` library target
-does not. Pinocchio loads the authoritative URDF and supplies arm joint limits
-and Jacobians. Joint-space jogging integrates bounded joint velocity into
-position targets. Cartesian-space jogging maps a 6D twist through a
-damped-least-squares differential IK solve, applies joint velocity and position
-limits, and emits the same `ArmCommand` position targets. Base-frame and
-tool-frame Cartesian jogging are both supported.
+## Model discovery and validation
 
-## Control mapping
+Default `Simulation::initialize()` resolves the installed `mfr3duo_description/mjcf/scene.xml` through `MFR3DUO_DESCRIPTION_PATH`, `CMAKE_PREFIX_PATH` or the path found at build time. Callers may pass an explicit model path. No ament dependency is needed by the core library.
 
-The robot-level API uses two consistent operation families:
-
-- `write_command(...)` for every controllable robot resource.
-- `read_state(...)` for robot state and sensor snapshots.
-
-The command or state type expresses the data being transferred, while `Arm`,
-`Gripper`, `Camera` and `Lidar` act only as resource selectors when multiple
-instances of the same data type exist.
-
-The robot-level API exposes explicit MFR3Duo semantics:
-
-- Arm::Left and Arm::Right each map to seven FR3 active joints.
-- the spine maps to franka_spine_vertical_joint.
-- Gripper::Left and Gripper::Right map to the two Franka Hands.
-- BaseCommand maps to the dynamic TMR swerve component.
-
-Arm commands are submitted to romujoco as one seven-joint batch. This preserves a coherent arm command update instead of requiring application code to issue seven unrelated component-ID writes.
-
-
-RobotCommand is a complete motion command: every device member is submitted,
-including default-initialized members. Simulation converts it into one
-romujoco::RobotCommand and calls the bottom-layer write_command() once, so
-the 15 active joints, two grippers and base publish as one command-buffer
-snapshot. Device-level writes remain incremental.
-
-The API supports Position, Velocity, Effort and Hybrid joint modes. Position and velocity controller gains remain robot integration parameters. Hybrid stiffness and damping are supplied with each JointCommand because romujoco defines them as command data.
-
-## State mapping
-
-RobotState is one coherent low-bandwidth snapshot containing:
-
-- simulation sequence, timestamp, time and step;
-- spine;
-- both seven-axis arms;
-- both grippers;
-- mobile-base ground-truth pose and twist.
-
-
-All motion members are extracted from one bottom-layer RobotState snapshot.
-Device-level reads performed while the simulation runs continuously may observe
-different steps; comparisons should use stopped, fixed-step execution.
-
-The base quaternion is normalized at the public boundary to x/y/z/w field semantics even though MuJoCo free-joint storage is w/x/y/z.
-
-IMU, Camera and LiDAR use the same `read_state()` entry point as robot state.
-The overload returns false when an optional component is disabled or no sample is available.
-
-## Component assembly
-
-The canonical configuration registers:
-
-- 15 active joints: spine plus both seven-axis FR3 arms;
-- 5 passive TMR joints;
-- 2 Franka Hand grippers;
-- 1 dynamic two-module swerve base;
-- 1 IMU;
-- 2 nanoScan3 scanners;
-- 14 MuJoCo camera objects.
-
-The active TMR steering and drive joints belong exclusively to MobileBase and are not duplicated as Joint components.
-
-Internal component IDs are stable only inside this integration layer. They are not an external control contract.
-
-## Model discovery
-
-The default Simulation::initialize() resolves mfr3duo_description/mjcf/scene.xml without ament. Resolution checks MFR3DUO_DESCRIPTION_PATH, CMAKE_PREFIX_PATH and an optional description directory discovered at build time.
-
-Applications that manage model paths themselves can call the explicit-path initialize overload, which avoids discovery completely.
-
-## Validation
-
-The configuration test verifies the complete 40-component assembly without loading MuJoCo.
-
-The simulation smoke test loads the real scene with camera rendering disabled, advances at least 50 physics steps so the 25 Hz LiDARs have produced samples, and verifies the public robot state, IMU and both LiDAR interfaces.
-
-Camera RGB/depth objects remain separate because the MJCF models them as distinct cameras. The existing upstream depth-only CameraInfo metadata limitation remains a romujoco issue and is not hidden with a robot-specific workaround.
+Configuration tests verify the active and passive joint assembly, allowed modes and actuator names. Fixed-step integration tests compare device states with one whole-robot snapshot and check TMR steering, drive, stop and reverse feedback. The smoke test loads the scene and checks independent IMU and LiDAR reads. Camera RGB and depth streams remain distinct because the MJCF represents them as distinct cameras.

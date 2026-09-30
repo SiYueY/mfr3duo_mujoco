@@ -88,18 +88,19 @@ int main() {
             initial.right_arm.joints[0].position;
         const double spine_motion =
             std::abs(final_state.spine.position - initial.spine.position);
-        const double base_lateral_motion =
-            std::abs(final_state.base.pose.position.y - initial.base.pose.position.y);
+        const double front_drive_motion =
+            std::abs(final_state.tmr.front_drive.position -
+                     initial.tmr.front_drive.position);
 
         std::cout
             << "right_joint_1_motion=" << right_joint_motion
             << " spine_motion=" << spine_motion
-            << " base_lateral_motion=" << base_lateral_motion << '\n';
+            << " front_drive_motion=" << front_drive_motion << '\n';
 
         passed =
             check(right_joint_motion > 0.02, "right joint 1 did not move") &&
             check(spine_motion < 0.02, "spine moved excessively") &&
-            check(base_lateral_motion < 0.05, "base moved laterally excessively");
+            check(front_drive_motion < 0.5, "TMR drive moved excessively");
     }
 
     passed =
