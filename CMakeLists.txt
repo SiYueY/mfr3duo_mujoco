@@ -162,6 +162,15 @@ if(BUILD_TESTING)
   add_test(NAME ${PROJECT_NAME}.config COMMAND ${PROJECT_NAME}_config_test)
 
   if(MFR3DUO_DESCRIPTION_SHARE_DIR)
+    add_executable(${PROJECT_NAME}_spine_response_test test/spine_response_test.cpp)
+    target_link_libraries(${PROJECT_NAME}_spine_response_test
+      PRIVATE ${PROJECT_NAME}::${PROJECT_NAME})
+    add_test(NAME ${PROJECT_NAME}.spine_response
+      COMMAND ${PROJECT_NAME}_spine_response_test)
+    set_tests_properties(${PROJECT_NAME}.spine_response PROPERTIES
+      TIMEOUT 60
+      ENVIRONMENT "MFR3DUO_DESCRIPTION_PATH=${MFR3DUO_DESCRIPTION_SHARE_DIR}")
+
     add_executable(${PROJECT_NAME}_motion_data_test test/motion_data_test.cpp)
     target_compile_definitions(
       ${PROJECT_NAME}_motion_data_test

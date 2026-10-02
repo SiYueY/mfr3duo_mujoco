@@ -308,9 +308,11 @@ romujoco::SimulationConfig make_simulation_config(
     config.scheduler.viewer_period = kViewerPeriod;
     config.viewer_enabled = options.viewer_enabled;
 
+    // Damping must account for the lifted mount and both arms. The previous
+    // 200 N s/m setting caused about 47% overshoot on a 4 cm position step.
     config.components.emplace_back(make_active_joint(
         component_ids::joint::kSpine, "franka_spine_vertical_joint",
-        "franka_spine_motor", {0.0, 0.85}, 0.1, 600.0, 5000.0, 200.0, true));
+        "franka_spine_motor", {0.0, 0.85}, 0.1, 600.0, 5000.0, 1000.0, true));
 
     add_fr3_arm(config.components, "left_", component_ids::joint::kLeftArm.front());
     add_fr3_arm(config.components, "right_", component_ids::joint::kRightArm.front());
