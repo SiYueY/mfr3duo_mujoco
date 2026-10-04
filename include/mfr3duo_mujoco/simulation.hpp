@@ -6,6 +6,8 @@
 #include <string>
 
 #include "mfr3duo_mujoco/config.hpp"
+#include "mfr3duo_mujoco/data/base_pose.hpp"
+#include "mfr3duo_mujoco/data/grasp.hpp"
 #include "mfr3duo_mujoco/data/camera.hpp"
 #include "mfr3duo_mujoco/data/imu.hpp"
 #include "mfr3duo_mujoco/data/lidar.hpp"
@@ -88,6 +90,9 @@ public:
     bool read_state(SpineState& state) const;
     bool read_state(TmrState& state) const;
     bool read_state(TmrPassiveState& state) const;
+    bool read_state(BasePoseState& state) const;
+    bool observe_grasp(
+        const std::string& object_id, Gripper hand, GraspObservation& observation) const;
     bool read_state(ImuState& state) const;
     bool read_state(Camera camera, CameraFrame& frame) const;
     bool read_state(Lidar lidar, LaserScan& scan) const;

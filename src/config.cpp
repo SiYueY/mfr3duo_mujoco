@@ -1,5 +1,6 @@
 #include "configuration.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
@@ -52,8 +53,8 @@ std::filesystem::path resolve_from_prefix_path(const char* value) {
 
 romujoco::JointInfo make_active_joint(
     romujoco::JointId id, std::string joint_name, std::string actuator_name,
-    romujoco::Limit position_limits, double velocity_limit, double effort_limit,
-    double stiffness, double damping, bool gravity_compensation = false) {
+    romujoco::Limit position_limits, double velocity_limit, double effort_limit, double stiffness,
+    double damping, bool gravity_compensation = false) {
     romujoco::JointInfo info;
     info.id = id;
     info.joint_name = std::move(joint_name);
@@ -114,8 +115,8 @@ void add_fr3_arm(
         const std::string base = prefix + "fr3v2_1_joint" + std::to_string(index + 1U);
         const JointSpec& spec = kSpecs[index];
         components.emplace_back(make_active_joint(
-            first_id + index, base, base + "_motor", {spec.lower, spec.upper},
-            spec.velocity, spec.effort, kArmStiffness, kArmDamping));
+            first_id + index, base, base + "_motor", {spec.lower, spec.upper}, spec.velocity,
+            spec.effort, kArmStiffness, kArmDamping, true));
     }
 }
 
@@ -124,8 +125,9 @@ romujoco::GripperInfo make_gripper(
     romujoco::GripperInfo info;
     info.id = id;
     info.name = std::move(name);
-    info.fingers = {{{prefix + "fr3v2_1_finger_joint1", prefix + "fr3v2_1_finger_motor"},
-                     {prefix + "fr3v2_1_finger_joint2", ""}}};
+    info.fingers = {
+        {{prefix + "fr3v2_1_finger_joint1", prefix + "fr3v2_1_finger_motor"},
+         {prefix + "fr3v2_1_finger_joint2", ""}}};
     info.period = kPhysicsPeriod;
     info.control.stiffness = 200.0;
     info.control.damping = 8.0;
@@ -139,8 +141,7 @@ romujoco::GripperInfo make_gripper(
     return info;
 }
 
-romujoco::JointInfo make_tmr_joint(
-    romujoco::JointId id, int index, romujoco::JointMode mode) {
+romujoco::JointInfo make_tmr_joint(romujoco::JointId id, int index, romujoco::JointMode mode) {
     const std::string name = "tmrv0_2_joint_" + std::to_string(index);
     romujoco::JointInfo info;
     info.id = id;
@@ -151,6 +152,7 @@ romujoco::JointInfo make_tmr_joint(
     info.position.stiffness = 30.0;
     info.position.damping = 5.0;
     info.velocity.damping = 2.0;
+    info.velocity.damping_friction_compensation = mode == romujoco::JointMode::Velocity;
     info.position_limits = {-kPi, kPi};
     info.velocity_limits = {-20.0, 20.0};
     info.effort_limits = {-500.0, 500.0};
@@ -193,9 +195,8 @@ romujoco::LidarInfo make_lidar(
 }
 
 romujoco::CameraConfig make_camera(
-    romujoco::CameraId id, std::string name, std::string frame_id,
-    std::string optical_frame_id, std::string camera_name, bool rgb, bool depth,
-    const SimulationOptions& options) {
+    romujoco::CameraId id, std::string name, std::string frame_id, std::string optical_frame_id,
+    std::string camera_name, bool rgb, bool depth, const SimulationOptions& options) {
     romujoco::CameraConfig info;
     info.id = id;
     info.name = std::move(name);
@@ -210,8 +211,7 @@ romujoco::CameraConfig make_camera(
     return info;
 }
 
-void add_cameras(
-    romujoco::ComponentConfigList& components, const SimulationOptions& options) {
+void add_cameras(romujoco::ComponentConfigList& components, const SimulationOptions& options) {
     using namespace detail::component_ids;
     components.emplace_back(make_camera(
         camera::kFrontColor, "front_color", "camera_front_color_frame",
@@ -284,8 +284,7 @@ std::string scene_path() {
     if (!from_prefix.empty()) return from_prefix.string();
 
 #ifdef MFR3DUO_MUJOCO_DEFAULT_DESCRIPTION_SHARE_DIR
-    const auto built_path =
-        resolve_scene_candidate(MFR3DUO_MUJOCO_DEFAULT_DESCRIPTION_SHARE_DIR);
+    const auto built_path = resolve_scene_candidate(MFR3DUO_MUJOCO_DEFAULT_DESCRIPTION_SHARE_DIR);
     if (!built_path.empty()) return built_path.string();
 #endif
 
@@ -307,37 +306,46 @@ romujoco::SimulationConfig make_simulation_config(
     config.scheduler.physics_period = kPhysicsPeriod;
     config.scheduler.viewer_period = kViewerPeriod;
     config.viewer_enabled = options.viewer_enabled;
+    config.model.observed_body_names = {
+        "base_link", "left_fr3v2_1_hand_tcp", "right_fr3v2_1_hand_tcp"};
+    std::vector<std::string> object_ids;
+    for (const auto& object : options.grasp_objects) {
+        if (object.object_id.empty() || object.body_name.empty() || object.collision_geom.empty() ||
+            std::find(object_ids.begin(), object_ids.end(), object.object_id) != object_ids.end())
+            throw std::invalid_argument("invalid grasp object mapping");
+        object_ids.push_back(object.object_id);
+        config.model.observed_body_names.push_back(object.body_name);
+    }
 
     // Damping must account for the lifted mount and both arms. The previous
     // 200 N s/m setting caused about 47% overshoot on a 4 cm position step.
+    // 1000 still overshot the upper stop during a coordinated high-pose return.
     config.components.emplace_back(make_active_joint(
-        component_ids::joint::kSpine, "franka_spine_vertical_joint",
-        "franka_spine_motor", {0.0, 0.85}, 0.1, 600.0, 5000.0, 1000.0, true));
+        component_ids::joint::kSpine, "franka_spine_vertical_joint", "franka_spine_motor",
+        {0.0, 0.85}, 0.1, 600.0, 5000.0, 1800.0, true));
 
     add_fr3_arm(config.components, "left_", component_ids::joint::kLeftArm.front());
     add_fr3_arm(config.components, "right_", component_ids::joint::kRightArm.front());
 
     config.components.emplace_back(make_tmr_joint(
         component_ids::joint::tmr::kFrontSteering, 0, romujoco::JointMode::Position));
-    config.components.emplace_back(make_tmr_joint(
-        component_ids::joint::tmr::kFrontDrive, 1, romujoco::JointMode::Velocity));
-    config.components.emplace_back(make_tmr_joint(
-        component_ids::joint::tmr::kRearSteering, 2, romujoco::JointMode::Position));
-    config.components.emplace_back(make_tmr_joint(
-        component_ids::joint::tmr::kRearDrive, 3, romujoco::JointMode::Velocity));
+    config.components.emplace_back(
+        make_tmr_joint(component_ids::joint::tmr::kFrontDrive, 1, romujoco::JointMode::Velocity));
+    config.components.emplace_back(
+        make_tmr_joint(component_ids::joint::tmr::kRearSteering, 2, romujoco::JointMode::Position));
+    config.components.emplace_back(
+        make_tmr_joint(component_ids::joint::tmr::kRearDrive, 3, romujoco::JointMode::Velocity));
 
     config.components.emplace_back(make_passive_joint(
-        component_ids::joint::tmr::kFrontCasterSteering,
-        "caster_front_left_steering_joint"));
+        component_ids::joint::tmr::kFrontCasterSteering, "caster_front_left_steering_joint"));
     config.components.emplace_back(make_passive_joint(
         component_ids::joint::tmr::kFrontCasterWheel, "caster_front_left_joint"));
+    config.components.emplace_back(
+        make_passive_joint(component_ids::joint::tmr::kRockerArm, "rocker_arm_joint"));
     config.components.emplace_back(make_passive_joint(
-        component_ids::joint::tmr::kRockerArm, "rocker_arm_joint"));
-    config.components.emplace_back(make_passive_joint(
-        component_ids::joint::tmr::kRearCasterSteering,
-        "caster_rear_right_steering_joint"));
-    config.components.emplace_back(make_passive_joint(
-        component_ids::joint::tmr::kRearCasterWheel, "caster_rear_right_joint"));
+        component_ids::joint::tmr::kRearCasterSteering, "caster_rear_right_steering_joint"));
+    config.components.emplace_back(
+        make_passive_joint(component_ids::joint::tmr::kRearCasterWheel, "caster_rear_right_joint"));
 
     config.components.emplace_back(
         make_gripper(component_ids::gripper::kLeft, "left_gripper", "left_"));

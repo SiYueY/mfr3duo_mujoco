@@ -1,13 +1,21 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace mfr3duo_mujoco {
 
 /**
  * @brief Runtime options for the canonical Mobile FR3 Duo simulation.
  */
+struct GraspObjectMapping {
+    std::string object_id;
+    std::string body_name;
+    std::string collision_geom;
+};
+
 struct SimulationOptions {
+    std::vector<GraspObjectMapping> grasp_objects;
     bool viewer_enabled{true};
     bool cameras_enabled{true};
     bool lidars_enabled{true};

@@ -1,5 +1,6 @@
 #include "mfr3duo_mujoco/simulation.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -41,25 +42,19 @@ JointControlMode from_romujoco_mode(std::uint8_t mode) {
     return JointControlMode::Position;
 }
 
-bool valid_arm(Arm arm) noexcept {
-    return arm == Arm::Left || arm == Arm::Right;
-}
+bool valid_arm(Arm arm) noexcept { return arm == Arm::Left || arm == Arm::Right; }
 
 bool valid_gripper(Gripper gripper) noexcept {
     return gripper == Gripper::Left || gripper == Gripper::Right;
 }
 
 bool valid_camera(Camera camera) noexcept {
-    return static_cast<std::uint8_t>(camera) <=
-           static_cast<std::uint8_t>(Camera::HeadZedRight);
+    return static_cast<std::uint8_t>(camera) <= static_cast<std::uint8_t>(Camera::HeadZedRight);
 }
 
-bool valid_lidar(Lidar lidar) noexcept {
-    return lidar == Lidar::Front || lidar == Lidar::Rear;
-}
+bool valid_lidar(Lidar lidar) noexcept { return lidar == Lidar::Front || lidar == Lidar::Rear; }
 
-romujoco::JointCommand make_joint_command(
-    romujoco::JointId id, const JointCommand& command) {
+romujoco::JointCommand make_joint_command(romujoco::JointId id, const JointCommand& command) {
     romujoco::JointCommand result;
     result.id = id;
     result.mode = static_cast<std::uint8_t>(to_romujoco_mode(command.mode));
@@ -79,8 +74,7 @@ romujoco::GripperCommand make_gripper_command(
     return result;
 }
 
-void append_tmr_commands(
-    const TmrCommand& command, romujoco::JointCommands& result) {
+void append_tmr_commands(const TmrCommand& command, romujoco::JointCommands& result) {
     namespace ids = detail::component_ids::joint::tmr;
     JointCommand steering;
     steering.position = command.front_steering_position;
@@ -146,8 +140,7 @@ romujoco::LidarId lidar_id(Lidar lidar) {
 }
 
 template <typename State>
-const State* find_state(
-    const romujoco::StateSnapshots<State>& states, std::size_t id) {
+const State* find_state(const romujoco::StateSnapshots<State>& states, std::size_t id) {
     if (states == nullptr) return nullptr;
     for (const auto& state : *states) {
         if (state != nullptr && state->id == id) return state.get();
@@ -164,8 +157,7 @@ void copy_joint_state(const romujoco::JointState& source, JointState& target) {
 }
 
 bool copy_arm_state(
-    const romujoco::JointStates& states,
-    const std::array<romujoco::JointId, kArmJointCount>& ids,
+    const romujoco::JointStates& states, const std::array<romujoco::JointId, kArmJointCount>& ids,
     ArmState& target) {
     for (std::size_t index = 0; index < ids.size(); ++index) {
         const auto* source = find_state(states, ids[index]);
@@ -189,8 +181,9 @@ bool copy_tmr_state(const romujoco::JointStates& states, TmrState& target) {
     const auto* front_drive = find_state(states, ids::kFrontDrive);
     const auto* rear_steering = find_state(states, ids::kRearSteering);
     const auto* rear_drive = find_state(states, ids::kRearDrive);
-    if (front_steering == nullptr || front_drive == nullptr ||
-        rear_steering == nullptr || rear_drive == nullptr) return false;
+    if (front_steering == nullptr || front_drive == nullptr || rear_steering == nullptr ||
+        rear_drive == nullptr)
+        return false;
     target.timestamp = front_steering->timestamp;
     copy_joint_state(*front_steering, target.front_steering);
     copy_joint_state(*front_drive, target.front_drive);
@@ -199,8 +192,7 @@ bool copy_tmr_state(const romujoco::JointStates& states, TmrState& target) {
     return true;
 }
 
-bool copy_tmr_passive_state(
-    const romujoco::JointStates& states, TmrPassiveState& target) {
+bool copy_tmr_passive_state(const romujoco::JointStates& states, TmrPassiveState& target) {
     namespace ids = detail::component_ids::joint::tmr;
     const auto* rocker = find_state(states, ids::kRockerArm);
     const auto* front_steering = find_state(states, ids::kFrontCasterSteering);
@@ -208,7 +200,8 @@ bool copy_tmr_passive_state(
     const auto* rear_steering = find_state(states, ids::kRearCasterSteering);
     const auto* rear_wheel = find_state(states, ids::kRearCasterWheel);
     if (rocker == nullptr || front_steering == nullptr || front_wheel == nullptr ||
-        rear_steering == nullptr || rear_wheel == nullptr) return false;
+        rear_steering == nullptr || rear_wheel == nullptr)
+        return false;
     target.timestamp = rocker->timestamp;
     target.rocker_arm = {rocker->position, rocker->velocity};
     target.front_caster_steering = {front_steering->position, front_steering->velocity};
@@ -268,6 +261,7 @@ SimulationStatus from_romujoco_status(romujoco::SimulationStatus status) {
 class Simulation::Impl {
 public:
     romujoco::Simulation simulation;
+    std::vector<GraspObjectMapping> grasp_objects;
     // Reuse conversion storage without sharing a mutable command across callers.
     std::mutex robot_command_mutex;
     romujoco::RobotCommand robot_command;
@@ -279,17 +273,18 @@ Simulation::~Simulation() = default;
 
 bool Simulation::initialize(const SimulationOptions& options) {
     try {
-        return impl_->simulation.initialize(detail::make_simulation_config(options));
+        return initialize(scene_path(), options);
     } catch (const std::exception&) {
         return false;
     }
 }
 
-bool Simulation::initialize(
-    const std::string& model_path, const SimulationOptions& options) {
+bool Simulation::initialize(const std::string& model_path, const SimulationOptions& options) {
     try {
-        return impl_->simulation.initialize(
-            detail::make_simulation_config(model_path, options));
+        if (!impl_->simulation.initialize(detail::make_simulation_config(model_path, options)))
+            return false;
+        impl_->grasp_objects = options.grasp_objects;
+        return true;
     } catch (const std::exception&) {
         return false;
     }
@@ -322,11 +317,9 @@ bool Simulation::write_command(Arm arm, const ArmCommand& command) {
     return impl_->simulation.write_commands(commands);
 }
 
-bool Simulation::write_command(
-    Gripper gripper, const GripperCommand& command) {
+bool Simulation::write_command(Gripper gripper, const GripperCommand& command) {
     if (!valid_gripper(gripper)) return false;
-    return impl_->simulation.write_command(
-        make_gripper_command(gripper_id(gripper), command));
+    return impl_->simulation.write_command(make_gripper_command(gripper_id(gripper), command));
 }
 
 bool Simulation::write_command(const SpineCommand& command) {
@@ -350,20 +343,18 @@ bool Simulation::write_command(const RobotCommand& command) {
         make_joint_command(detail::component_ids::joint::kSpine, command.spine));
     for (std::size_t index = 0; index < kArmJointCount; ++index) {
         result.joints.emplace_back(make_joint_command(
-            detail::component_ids::joint::kLeftArm[index],
-            command.left_arm.joints[index]));
+            detail::component_ids::joint::kLeftArm[index], command.left_arm.joints[index]));
         result.joints.emplace_back(make_joint_command(
-            detail::component_ids::joint::kRightArm[index],
-            command.right_arm.joints[index]));
+            detail::component_ids::joint::kRightArm[index], command.right_arm.joints[index]));
     }
     append_tmr_commands(command.tmr, result.joints);
 
     result.grippers.clear();
     result.grippers.reserve(2);
-    result.grippers.emplace_back(make_gripper_command(
-        detail::component_ids::gripper::kLeft, command.left_gripper));
-    result.grippers.emplace_back(make_gripper_command(
-        detail::component_ids::gripper::kRight, command.right_gripper));
+    result.grippers.emplace_back(
+        make_gripper_command(detail::component_ids::gripper::kLeft, command.left_gripper));
+    result.grippers.emplace_back(
+        make_gripper_command(detail::component_ids::gripper::kRight, command.right_gripper));
     return impl_->simulation.write_command(result);
 }
 
@@ -371,10 +362,8 @@ bool Simulation::read_state(RobotState& state) const {
     std::shared_ptr<const romujoco::RobotState> source;
     if (!impl_->simulation.read_state(source) || source == nullptr) return false;
 
-    const auto* spine =
-        find_state(source->joints, detail::component_ids::joint::kSpine);
-    const auto* left_gripper =
-        find_state(source->grippers, detail::component_ids::gripper::kLeft);
+    const auto* spine = find_state(source->joints, detail::component_ids::joint::kSpine);
+    const auto* left_gripper = find_state(source->grippers, detail::component_ids::gripper::kLeft);
     const auto* right_gripper =
         find_state(source->grippers, detail::component_ids::gripper::kRight);
     if (spine == nullptr || left_gripper == nullptr || right_gripper == nullptr) {
@@ -387,8 +376,7 @@ bool Simulation::read_state(RobotState& state) const {
     result.simulation_time = source->simulation_time;
     result.step = source->step;
     copy_joint_state(*spine, result.spine);
-    if (!copy_arm_state(
-            source->joints, detail::component_ids::joint::kLeftArm, result.left_arm)) {
+    if (!copy_arm_state(source->joints, detail::component_ids::joint::kLeftArm, result.left_arm)) {
         return false;
     }
     if (!copy_arm_state(
@@ -412,8 +400,7 @@ bool Simulation::read_state(Arm arm, ArmState& state) const {
     return true;
 }
 
-bool Simulation::read_state(
-    Gripper gripper, GripperState& state) const {
+bool Simulation::read_state(Gripper gripper, GripperState& state) const {
     if (!valid_gripper(gripper)) return false;
     romujoco::GripperState source;
     source.id = gripper_id(gripper);
@@ -448,6 +435,78 @@ bool Simulation::read_state(TmrPassiveState& state) const {
     return true;
 }
 
+bool Simulation::read_state(BasePoseState& state) const {
+    std::shared_ptr<const romujoco::RobotState> snapshot;
+    if (!impl_->simulation.read_state(snapshot) || snapshot == nullptr) return false;
+    for (const auto& body : snapshot->body_poses) {
+        if (body.name != "base_link") continue;
+        BasePoseState result;
+        result.sequence = snapshot->sequence;
+        result.timestamp = static_cast<double>(snapshot->body_pose_timestamp) * 1.0e-9;
+        result.pose.position = {body.position[0], body.position[1], body.position[2]};
+        result.pose.orientation = {
+            body.orientation[1], body.orientation[2], body.orientation[3], body.orientation[0]};
+        state = result;
+        return true;
+    }
+    return false;
+}
+
+bool Simulation::observe_grasp(
+    const std::string& object_id, Gripper hand, GraspObservation& observation) const {
+    GraspObservation result;
+    const auto fail = [&](const char* reason) {
+        result.diagnostic = reason;
+        observation = result;
+        return false;
+    };
+    if (!valid_gripper(hand) || object_id.empty()) return fail("invalid object or manipulator");
+    const auto mapping = std::find_if(
+        impl_->grasp_objects.begin(), impl_->grasp_objects.end(),
+        [&](const auto& value) { return value.object_id == object_id; });
+    if (mapping == impl_->grasp_objects.end()) return fail("unknown object ID");
+    std::shared_ptr<const romujoco::RobotState> snapshot;
+    if (!impl_->simulation.read_state(snapshot) || !snapshot)
+        return fail("observation unavailable");
+    const std::string prefix = hand == Gripper::Left ? "left_fr3v2_1_" : "right_fr3v2_1_";
+    bool tool_found = false;
+    for (const auto& body : snapshot->body_poses) {
+        Pose pose;
+        pose.position = {body.position[0], body.position[1], body.position[2]};
+        pose.orientation = {
+            body.orientation[1], body.orientation[2], body.orientation[3], body.orientation[0]};
+        if (body.name == mapping->body_name) {
+            result.object_pose = pose;
+            result.object_visible = true;
+        }
+        if (body.name == prefix + "hand_tcp") {
+            result.tool_pose = pose;
+            tool_found = true;
+        }
+    }
+    for (const auto& contact : snapshot->contacts) {
+        if (contact.distance > .001) continue;
+        const auto& other =
+            contact.geom1 == mapping->collision_geom ? contact.geom2 : contact.geom1;
+        if (contact.geom1 != mapping->collision_geom && contact.geom2 != mapping->collision_geom)
+            continue;
+        if (other.compare(0, (prefix + "leftfinger_pad_").size(), prefix + "leftfinger_pad_") == 0) {
+            result.left_finger_contact = true;
+        }
+        if (other.compare(0, (prefix + "rightfinger_pad_").size(), prefix + "rightfinger_pad_") ==
+            0) {
+            result.right_finger_contact = true;
+        }
+    }
+    result.sequence = snapshot->sequence;
+    result.timestamp = static_cast<double>(snapshot->body_pose_timestamp) * 1e-9;
+    result.valid = result.object_visible && tool_found;
+    result.diagnostic =
+        result.valid ? "same-instance pose/contact snapshot" : "missing object/tool pose";
+    observation = std::move(result);
+    return observation.valid;
+}
+
 bool Simulation::read_state(ImuState& state) const {
     std::shared_ptr<const romujoco::RobotState> snapshot;
     if (!impl_->simulation.read_state(snapshot) || snapshot == nullptr) return false;
@@ -458,17 +517,12 @@ bool Simulation::read_state(ImuState& state) const {
     state.timestamp = source->timestamp;
     state.frame_id = source->frame_id;
     state.orientation = {
-        source->orientation[0],
-        source->orientation[1],
-        source->orientation[2],
+        source->orientation[0], source->orientation[1], source->orientation[2],
         source->orientation[3]};
     state.angular_velocity = {
-        source->angular_velocity[0],
-        source->angular_velocity[1],
-        source->angular_velocity[2]};
+        source->angular_velocity[0], source->angular_velocity[1], source->angular_velocity[2]};
     state.linear_acceleration = {
-        source->linear_acceleration[0],
-        source->linear_acceleration[1],
+        source->linear_acceleration[0], source->linear_acceleration[1],
         source->linear_acceleration[2]};
     state.orientation_covariance = source->orientation_covariance;
     state.angular_velocity_covariance = source->angular_velocity_covariance;

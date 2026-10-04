@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cmath>
 #include <exception>
 #include <iostream>
 
@@ -35,11 +36,20 @@ int main() {
 
         mfr3duo_mujoco::RobotState state;
         mfr3duo_mujoco::ImuState imu;
+        mfr3duo_mujoco::BasePoseState base_pose;
         mfr3duo_mujoco::LaserScan front_scan;
         mfr3duo_mujoco::LaserScan rear_scan;
 
         const bool passed =
             check(simulation.read_state(state), "failed to read robot state") &&
+            check(simulation.read_state(base_pose), "failed to read same-instance base pose") &&
+            check(base_pose.sequence == state.sequence, "base pose sequence mismatch") &&
+            check(std::isfinite(base_pose.pose.position.x) &&
+                  std::isfinite(base_pose.pose.position.y) &&
+                  std::isfinite(base_pose.pose.orientation.w), "invalid base world pose") &&
+            check(base_pose.timestamp >= 0 && base_pose.timestamp <= state.simulation_time &&
+                  state.simulation_time-base_pose.timestamp <= .001000001,
+                  "body pose sample timestamp mismatch") &&
             check(simulation.read_state(imu), "failed to read IMU state") &&
             check(
                 simulation.read_state(mfr3duo_mujoco::Lidar::Front, front_scan),
